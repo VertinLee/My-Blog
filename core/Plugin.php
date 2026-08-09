@@ -155,8 +155,39 @@ class Plugin
         self::deactivate($slug);
         self::removeDir($dir);
         do_action('plugin_uninstall', $slug);
+        // 内核兜底清理残留数据：options 配置、plugin_data 数据、已登记自建表
+        self::cleanupData($slug);
         blog_log('plugin', 'plugin.uninstall', 'success', array('slug' => $slug));
         return true;
+    }
+
+    /**
+     * 卸载残留清理：plugin_{slug}_* 选项、plugin_data 中该插件的行、
+     * 经 plugin_register_table() 登记的自建表（插件无需自行清理）
+     *
+     * @param string $slug 插件 slug
+     * @return void
+     */
+    private static function cleanupData($slug)
+    {
+        try {
+            // 先读自建表清单（其 option 行随后会被 LIKE 删除）
+            $tables = Option::getJson('plugin_' . $slug . '_tables', array());
+            // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 plugin_{slug}_ 前缀
+            DB::query('options')
+                ->where('option_key', 'LIKE', 'plugin_' . $slug . '\\_%')
+                ->delete();
+            DB::delete('plugin_data', array('plugin' => $slug));
+            foreach ($tables as $name) {
+                // 双重白名单校验后才允许拼入 DDL，防注入
+                if (preg_match('/^[a-z0-9_]{1,32}$/', $name)) {
+                    DB::pdo()->exec('DROP TABLE IF EXISTS `' . plugin_table($slug, $name) . '`');
+                }
+            }
+            Option::resetCache();
+        } catch (Exception $ex) {
+            error_log('[blog] plugin cleanup failed (' . $slug . '): ' . $ex->getMessage());
+        }
     }
 
     /** 递归删除目录 */
@@ -237,4 +268,158 @@ function register_plugin_page($slug, $title, $callback)
 function get_plugin_pages()
 {
     return isset($GLOBALS['cb_plugin_pages']) ? $GLOBALS['cb_plugin_pages'] : array();
+}
+
+/* ================= 插件通用数据存储（plugin_data 表） ================= */
+
+/**
+ * 写入插件全局数据（ttl>0 时为临时缓存，到期自动失效）
+ *
+ * @param string $slug  插件 slug
+ * @param string $key   数据键（≤191 字符）
+ * @param mixed  $value 值（数组自动 JSON 编码）
+ * @param int    $ttl   存活秒数，0 表示永久
+ * @return void
+ */
+function plugin_data_set($slug, $key, $value, $ttl = 0)
+{
+    plugin_data_write($slug, 'global', 0, $key, $value, $ttl);
+}
+
+/**
+ * 读取插件全局数据（过期行视为不存在）
+ *
+ * @param string $slug    插件 slug
+ * @param string $key     数据键
+ * @param mixed  $default 缺省值
+ * @return mixed
+ */
+function plugin_data_get($slug, $key, $default = null)
+{
+    return plugin_data_read($slug, 'global', 0, $key, $default);
+}
+
+/**
+ * 删除插件全局数据
+ */
+function plugin_data_delete($slug, $key)
+{
+    DB::delete('plugin_data', array('plugin' => $slug, 'scope' => 'global', 'user_id' => 0, 'data_key' => $key));
+}
+
+/**
+ * 写入插件用户级数据（替代 usermeta：第三方账号绑定等场景）
+ */
+function plugin_user_set($slug, $userId, $key, $value)
+{
+    plugin_data_write($slug, 'user', (int) $userId, $key, $value, 0);
+}
+
+/**
+ * 读取插件用户级数据
+ */
+function plugin_user_get($slug, $userId, $key, $default = null)
+{
+    return plugin_data_read($slug, 'user', (int) $userId, $key, $default);
+}
+
+/**
+ * 删除插件用户级数据
+ */
+function plugin_user_delete($slug, $userId, $key)
+{
+    DB::delete('plugin_data', array('plugin' => $slug, 'scope' => 'user', 'user_id' => (int) $userId, 'data_key' => $key));
+}
+
+/** 统一写入：存在则更新，不存在则插入（唯一索引兜底） */
+function plugin_data_write($slug, $scope, $userId, $key, $value, $ttl)
+{
+    if (is_array($value)) {
+        $value = json_encode($value);
+    }
+    $where = array('plugin' => $slug, 'scope' => $scope, 'user_id' => (int) $userId, 'data_key' => $key);
+    $row = array(
+        'data_value' => (string) $value,
+        'expires_at' => $ttl > 0 ? date('Y-m-d H:i:s', time() + (int) $ttl) : null,
+        'updated_at' => now(),
+    );
+    $exists = DB::query('plugin_data')->whereMap($where)->value('id');
+    if ($exists !== null) {
+        DB::update('plugin_data', $row, array('id' => (int) $exists));
+    } else {
+        DB::insert('plugin_data', array_merge($where, $row, array('created_at' => now())));
+    }
+}
+
+/** 统一读取：行不存在或已过期返回缺省值 */
+function plugin_data_read($slug, $scope, $userId, $key, $default)
+{
+    $row = DB::query('plugin_data')
+        ->where('plugin', '=', $slug)
+        ->where('scope', '=', $scope)
+        ->where('user_id', '=', (int) $userId)
+        ->where('data_key', '=', $key)
+        ->first();
+    if ($row === null) {
+        return $default;
+    }
+    if ($row['expires_at'] !== null && strtotime($row['expires_at']) < time()) {
+        return $default;
+    }
+    return $row['data_value'];
+}
+
+/**
+ * 过期临时数据清理（每日最多一次，由 bootstrap 惰性触发）
+ *
+ * @return void
+ */
+function plugin_data_purge_expired()
+{
+    $last = (int) Option::get('plugin_data_purge_at', 0);
+    if (time() - $last < 86400) {
+        return;
+    }
+    Option::set('plugin_data_purge_at', time());
+    try {
+        // expires_at 为 NULL 的行不会命中 < 比较，永久数据不受影响
+        DB::query('plugin_data')->where('expires_at', '<', now())->delete();
+    } catch (Exception $ex) {
+        error_log('[blog] plugin_data purge failed: ' . $ex->getMessage());
+    }
+}
+
+/* ================= 插件自建表（复杂场景才用，卸载自动 DROP） ================= */
+
+/**
+ * 登记插件自建表：表名限定 [a-z0-9_]{1,32}，卸载时内核自动 DROP
+ *
+ * @param string $slug 插件 slug
+ * @param string $name 表短名（不含前缀）
+ * @return bool
+ */
+function plugin_register_table($slug, $name)
+{
+    if (!preg_match('/^[a-z0-9_]{1,32}$/', $name)) {
+        return false;
+    }
+    $key = 'plugin_' . $slug . '_tables';
+    $tables = Option::getJson($key, array());
+    if (!in_array($name, $tables, true)) {
+        $tables[] = $name;
+        Option::set($key, $tables);
+    }
+    return true;
+}
+
+/**
+ * 插件自建表完整表名（含前缀，slug 中连字符转下划线以满足标识符规则）
+ *
+ * @param string $slug 插件 slug
+ * @param string $name 表短名
+ * @return string
+ */
+function plugin_table($slug, $name)
+{
+    return DB::table('plugin_' . str_replace('-', '_', $slug) . '_' . $name);
 }

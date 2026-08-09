@@ -6,6 +6,7 @@ defined('APP_BOOT') or exit;
 Theme::part('header');
 ?>
 <div id="content">
+    <div class="auth-site-name"><a href="<?php echo e(Router::url('home')); ?>"><?php echo e(site_name()); ?></a></div>
     <div class="auth-card">
         <h1>找回密码</h1>
         <?php if ($info !== ''): ?>

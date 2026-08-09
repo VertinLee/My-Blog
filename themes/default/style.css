@@ -224,10 +224,16 @@ p { margin-bottom: 1.2em; }
 
 /* ===== 文章详情 ===== */
 .article-header { margin-bottom: 32px; padding: 48px 0 20px; text-align: left; }
-.article-title { font-size: 28px; font-weight: 700; margin-bottom: 16px; line-height: 1.4; }
+.article-title {
+    font-size: 28px; font-weight: 700; line-height: 1.4;
+    margin-bottom: 0; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
 .article-meta {
     font-size: 14px; color: var(--text-secondary);
     display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    /* 上下分隔线：标题/信息、信息/正文之间各一条可见分隔 */
+    padding: 14px 0; border-bottom: 1px solid var(--border-color);
 }
 .article-meta .meta-divider { color: var(--border-color); }
 .article-meta a { color: var(--text-secondary); }
@@ -415,6 +421,15 @@ p { margin-bottom: 1.2em; }
     box-shadow: var(--card-shadow);
     padding: 32px 40px;
 }
+/* 认证页（登录/注册/找回密码）卡片上方的站点名称 */
+.auth-site-name {
+    max-width: 680px;
+    margin: 32px auto -20px;
+    text-align: center;
+    font-size: 22px; font-weight: 700; line-height: 1.4;
+}
+.auth-site-name a { color: var(--text-primary); }
+.auth-site-name a:hover { color: var(--accent); text-decoration: none; }
 .auth-card h1 { font-size: 22px; margin-bottom: 20px; text-align: center; }
 .auth-links { font-size: 14px; color: var(--text-secondary); margin-top: 16px; text-align: center; }
 .auth-form .form-actions { text-align: center; }
@@ -522,6 +537,7 @@ p { margin-bottom: 1.2em; }
     .banner-title { font-size: 22px; }
     .article-header { padding-top: 36px; }
     .auth-card { padding: 24px 20px; margin: 24px 16px; }
+    .auth-site-name { margin: 24px 16px -12px; font-size: 20px; }
 }
 
 @media (max-width: 480px) {

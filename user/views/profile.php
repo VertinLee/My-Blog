@@ -69,6 +69,8 @@ defined('APP_BOOT') or exit;
     <a class="btn" href="<?php echo e(site_base_admin('profile/password')); ?>">前往修改密码</a>
 </div>
 
+<?php do_action('profile_cards', $user); /* 插件追加卡片（如第三方账号绑定/解绑） */ ?>
+
 <?php if (Auth::check_cap('edit_profile')): ?>
 <script>
 // 验证码发送按钮配置（复用前台 verify.js 通用逻辑，必须在引入前定义）

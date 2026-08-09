@@ -115,6 +115,23 @@ function install_schema($prefix)
         KEY `idx_ip` (`ip`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
+    // 插件通用数据存储：global（配置）/user（用户级键值）两种作用域，
+    // expires_at 非空即临时缓存（等价 transient），过期由内核每日惰性清理
+    $tables['plugin_data'] = "CREATE TABLE IF NOT EXISTS `{$prefix}plugin_data` (
+        `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        `plugin` VARCHAR(64) NOT NULL,
+        `scope` ENUM('global','user') NOT NULL DEFAULT 'global',
+        `user_id` INT UNSIGNED NOT NULL DEFAULT 0,
+        `data_key` VARCHAR(191) NOT NULL,
+        `data_value` MEDIUMTEXT,
+        `expires_at` DATETIME NULL DEFAULT NULL,
+        `created_at` DATETIME NOT NULL,
+        `updated_at` DATETIME NOT NULL,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `uk_lookup` (`plugin`,`scope`,`user_id`,`data_key`),
+        KEY `idx_expires` (`expires_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
     return $tables;
 }
 

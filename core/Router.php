@@ -109,7 +109,9 @@ class Router
             return array('route' => 'verify_check', 'params' => array());
         }
 
-        return array('route' => '404', 'params' => array());
+        // 未知路径默认 404；先经 route_parse 过滤器，插件可认领自定义路由
+        // （如 OAuth 回调、Webhook），回调签名：($route, $path)
+        return apply_filters('route_parse', array('route' => '404', 'params' => array()), $path);
     }
 
     /**

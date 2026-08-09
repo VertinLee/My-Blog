@@ -24,6 +24,17 @@ class Hook
     }
 
     /**
+     * 指定钩子是否有已注册的回调（供分发器判断插件自定义路由等）
+     *
+     * @param string $hook 钩子名
+     * @return bool
+     */
+    public static function has($hook)
+    {
+        return !empty(self::$hooks[$hook]);
+    }
+
+    /**
      * 触发动作钩子
      *
      * @param string $hook 钩子名
@@ -80,6 +91,14 @@ function do_action($hook)
 {
     $args = func_get_args();
     call_user_func_array(array('Hook', 'doAction'), $args);
+}
+
+/**
+ * 判断钩子是否有注册回调
+ */
+function has_action($hook)
+{
+    return Hook::has($hook);
 }
 
 /**

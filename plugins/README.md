@@ -49,6 +49,8 @@ defined('APP_BOOT') or exit;
 |---|---|---|---|
 | `front_head` | action | 无 | 前台 `</head>` 前输出点 |
 | `front_footer` | action | 无 | 前台页尾输出点 |
+| `admin_head` | action | 无 | 后台 `</head>` 前输出点（插件后台样式/脚本） |
+| `admin_footer` | action | 无 | 后台 `</body>` 前输出点 |
 | `post_content` | filter | `$html` | 文章正文渲染后、输出前（可追加处理） |
 | `comment_before_save` | filter | `$data` | 评论入库前，可改写或拦截 |
 | `admin_menu` | action | 无 | 注册后台菜单项/设置页 |
@@ -57,7 +59,37 @@ defined('APP_BOOT') or exit;
 | `send_verify_code` | filter | `$handled, $scene, $target, $channel, $code` | 返回 `true` 表示已接管发送 |
 | `verify_code_check` | filter | `$result, $scene, $target, $code, $channel` | 返回 `bool` 接管核验；返回 `null` 走本地表 |
 | `password_blacklist` | filter | `$list` | 扩展弱口令黑名单 |
+| `route_parse` | filter | `$route, $path` | 未知路径落入 404 前认领自定义路由 |
+| `front_route_{路由名}` | action | `$params` | 接管经 `route_parse` 认领的路由 |
+| `auth_form_footer` | action | `$page` | 登录表单下方注入点（主题触发，默认 `$page='login'`） |
+| `profile_cards` | action | `$user` | 后台个人资料页追加卡片（内核视图触发） |
 | `plugin_activate` / `plugin_deactivate` / `plugin_uninstall` | action | `$slug` | 插件生命周期 |
+
+## 3.1 自定义路由（OAuth 回调 / Webhook 等）
+
+内核路由表为硬编码，插件通过两步接管未知路径（参考 `plugins/qq-login`）：
+
+```php
+// 第一步：认领路径，返回自有路由名
+add_filter('route_parse', 'my_claim_route', 10);
+function my_claim_route($route, $path)
+{
+    if ($path === 'my-callback') {
+        return array('route' => 'my_callback', 'params' => array());
+    }
+    return $route;
+}
+
+// 第二步：注册处理动作（未注册则照常 404）
+add_action('front_route_my_callback', 'my_handle_callback');
+function my_handle_callback($params)
+{
+    // GET/POST 自行处理；改状态的 POST 必须 Csrf::verifyOrDie()
+}
+```
+
+URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`，
+关闭时 `Router::base() . '/index.php?r=' . rawurlencode('my-callback')`。
 
 ## 4. 插件 API
 
@@ -65,13 +97,40 @@ defined('APP_BOOT') or exit;
 |---|---|
 | `plugin_option($slug, $key, $default)` | 读取插件配置（options 键 `plugin_{slug}_{key}`） |
 | `plugin_option_update($slug, $key, $value)` | 写入插件配置 |
+| `plugin_data_set($slug, $key, $value, $ttl)` | 全局数据写入（ttl>0 即临时缓存，到期自动失效） |
+| `plugin_data_get($slug, $key, $default)` | 全局数据读取（过期视为不存在） |
+| `plugin_data_delete($slug, $key)` | 全局数据删除 |
+| `plugin_user_set($slug, $userId, $key, $value)` | 用户级数据写入（第三方账号绑定等） |
+| `plugin_user_get($slug, $userId, $key, $default)` | 用户级数据读取 |
+| `plugin_user_delete($slug, $userId, $key)` | 用户级数据删除 |
+| `plugin_register_table($slug, $name)` | 登记自建表（卸载时内核自动 DROP） |
+| `plugin_table($slug, $name)` | 自建表完整表名（含前缀） |
 | `plugin_log($action, $detail)` | 写统一审计日志（category 固定 plugin） |
 | `plugin_url($slug, $path)` | 插件静态资源 URL |
 | `register_plugin_page($slug, $title, $callback)` | 注册后台设置页（在 `admin_menu` 钩子中调用） |
 
 其他可用内核 API：`add_action/add_filter`、`e()`、`Router::url()`、`Option::get()`、
-`blog_log()`、`client_ip()` 等。**禁止**在插件中直接拼接 SQL、直接读 `$_GET/$_POST`
+`DB::query()`（结构化查询构造器，值自动参数绑定）、`blog_log()`、`client_ip()` 等。
+**禁止**在插件中直接拼接 SQL、直接读 `$_GET`/`$_POST`
 原值、输出未转义变量——请复用内核的统一输入校验器与 `e()`。
+
+### 4.1 插件数据存储（plugin_data 表）
+
+一张表覆盖三种场景，插件永远不写 SQL、不管建表：
+
+- **全局配置**：`plugin_data_set/get`（永久）；简单键值也可继续用 `plugin_option`；
+- **用户级键值**：`plugin_user_set/get/delete`（替代 usermeta，如 QQ openid 绑定，
+  反查可直接 `DB::query('plugin_data')` 按 `data_value` 条件查询）；
+- **临时缓存**：`plugin_data_set(..., $ttl)`，过期由内核每日惰性清理。
+
+数组值自动 JSON 编码；读取返回字符串，需数组时自行 `json_decode`。
+
+### 4.2 卸载自动清理
+
+后台「插件管理 → 删除」时内核自动清理：`plugin_{slug}_*` 全部选项、
+`plugin_data` 中该插件的行、经 `plugin_register_table()` 登记的自建表。
+插件无需自写清理代码；但因此也**不得**把数据写到上述范围之外
+（如直接改 users 表结构），否则卸载后残留。
 
 ## 5. 后台设置页
 
@@ -125,4 +184,6 @@ function hello_world_page()
 
 ## 8. 完整示例
 
-见 `plugins/hello-world/hello-world.php`。
+- `plugins/hello-world/hello-world.php`：钩子与设置页基础用法。
+- `plugins/qq-login/`：自定义路由（OAuth 回调）、登录页/个人资料页钩子注入、
+  `plugin_data` 用户级绑定存储、限流与 state 防伪的完整实战。

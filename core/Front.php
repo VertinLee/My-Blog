@@ -68,6 +68,12 @@ class Front
                 self::verifyCheck();
                 break;
             default:
+                // 插件自定义路由：经 route_parse 认领的路由名若注册了
+                // front_route_{路由名} 动作则由插件接管，否则照常 404
+                if (has_action('front_route_' . $name)) {
+                    do_action('front_route_' . $name, $params);
+                    break;
+                }
                 self::notFound();
         }
     }

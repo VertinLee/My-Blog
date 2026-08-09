@@ -171,6 +171,17 @@ add_filter('post_content', 'my_theme_content');
 可用钩子清单与语义见 `plugins/README.md` §3（主题与插件共享同一套 Hook 机制，
 常用：`front_head`、`front_footer`、`post_content`）。
 
+### 5.1 主题应触发的插件注入点
+
+除内核自动触发的钩子外，主题模板内应保留以下输出点，供插件注入界面元素
+（参考 `themes/default`）：
+
+| 钩子 | 位置 | 说明 |
+|---|---|---|
+| `auth_form_footer` | `login.php` 登录表单下方（卡片内） | `do_action('auth_form_footer', 'login')`，第三方登录入口（如 QQ 图标） |
+
+缺失这些输出点不会报错，但会导致对应插件功能在新主题上无法展示。
+
 ## 6. 启用、上传、删除与主题设置
 
 - **启用**：后台「模板管理 → 启用」，写入 `options.active_theme`。

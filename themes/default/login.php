@@ -6,6 +6,7 @@ defined('APP_BOOT') or exit;
 Theme::part('header');
 ?>
 <div id="content">
+    <div class="auth-site-name"><a href="<?php echo e(Router::url('home')); ?>"><?php echo e(site_name()); ?></a></div>
     <div class="auth-card">
         <h1>登录</h1>
         <?php foreach (flash_pull() as $fm): ?>
@@ -26,6 +27,7 @@ Theme::part('header');
             </p>
             <p class="form-actions"><button class="submit" type="submit">登录</button></p>
         </form>
+        <?php do_action('auth_form_footer', 'login'); /* 第三方登录入口等插件注入点（登录按钮下方） */ ?>
         <div class="auth-links">
             <a href="<?php echo e(Router::url('forgot')); ?>">忘记密码？</a>
             <?php if (Option::get('register_disabled', '0') !== '1'): ?>

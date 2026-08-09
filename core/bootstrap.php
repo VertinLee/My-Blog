@@ -108,6 +108,29 @@ if (Option::get('schema_user_flags', '0') !== '1') {
     }
 }
 
+// 存量站结构惰性升级：补 plugin_data 表（插件通用数据存储；新装已含，幂等只跑一次）
+if (Option::get('schema_plugin_data', '0') !== '1') {
+    try {
+        DB::pdo()->exec("CREATE TABLE IF NOT EXISTS `" . DB::table('plugin_data') . "` (
+            `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `plugin` VARCHAR(64) NOT NULL,
+            `scope` ENUM('global','user') NOT NULL DEFAULT 'global',
+            `user_id` INT UNSIGNED NOT NULL DEFAULT 0,
+            `data_key` VARCHAR(191) NOT NULL,
+            `data_value` MEDIUMTEXT,
+            `expires_at` DATETIME NULL DEFAULT NULL,
+            `created_at` DATETIME NOT NULL,
+            `updated_at` DATETIME NOT NULL,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uk_lookup` (`plugin`,`scope`,`user_id`,`data_key`),
+            KEY `idx_expires` (`expires_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        Option::set('schema_plugin_data', '1');
+    } catch (Exception $ex) {
+        error_log('[blog] schema upgrade failed: ' . $ex->getMessage());
+    }
+}
+
 // 站点时区：默认 UTC+8（Asia/Shanghai），影响 now()/date_fmt()/日志等全部时间
 // 非法值回退默认，避免 date() 报警告
 $timezone = Option::get('timezone', 'Asia/Shanghai');
@@ -149,3 +172,6 @@ do_action('init');
 
 // 审计日志留存期惰性清理（每日最多一次）
 Logger::purgeExpired();
+
+// 插件临时缓存（plugin_data 带 expires_at 的行）惰性清理，每日最多一次
+plugin_data_purge_expired();

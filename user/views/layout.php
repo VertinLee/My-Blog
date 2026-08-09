@@ -14,6 +14,7 @@ $adminUser = Auth::user();
 <meta name="robots" content="noindex,nofollow">
 <title><?php echo e($pageTitle); ?> - 后台管理</title>
 <link rel="stylesheet" href="<?php echo e(assets_url('admin/admin.css')); ?>">
+<?php do_action('admin_head'); /* 插件后台样式/脚本注入点（head 内） */ ?>
 </head>
 <body>
 <div class="admin-layout">
@@ -71,5 +72,6 @@ $adminUser = Auth::user();
 <script src="<?php echo e($scriptUrl); ?>"></script>
 <?php endforeach; ?>
 <?php endif; ?>
+<?php do_action('admin_footer'); /* 插件后台脚本注入点（body 末尾） */ ?>
 </body>
 </html>
