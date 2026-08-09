@@ -1,0 +1,419 @@
+<?php
+/**
+ * 模板机制：主题定位与渲染 + 模板 API（模板内禁止直接操作 DB，数据经 $ctx 注入）
+ */
+defined('APP_BOOT') or exit;
+
+class Theme
+{
+    /** 当前启用主题目录名 */
+    public static function current()
+    {
+        $theme = Option::get('active_theme', 'default');
+        if (!preg_match('/^[a-z0-9_-]{1,64}$/', $theme) || !is_dir(self::dirOf($theme))) {
+            $theme = 'default';
+        }
+        return $theme;
+    }
+
+    /** 主题绝对路径 */
+    public static function dirOf($theme)
+    {
+        return APP_ROOT . '/themes/' . $theme;
+    }
+
+    /** 当前主题绝对路径 */
+    public static function dir()
+    {
+        return self::dirOf(self::current());
+    }
+
+    /** 当前主题静态资源 URL（附文件修改时间版本号，避免浏览器缓存旧样式/脚本） */
+    public static function assetsUrl($path = '')
+    {
+        $url = Router::base() . '/themes/' . self::current() . '/' . ltrim($path, '/');
+        $file = self::dir() . '/' . ltrim($path, '/');
+        if (is_file($file)) {
+            $url .= '?v=' . filemtime($file);
+        }
+        return $url;
+    }
+
+    /**
+     * 读取某主题的配置（后台「模板管理 → 设置」维护，存 options.theme_settings_{dir}）
+     *
+     * @param string $theme 主题目录名
+     * @return array 配置键值对，无配置返回空数组
+     */
+    public static function settingsOf($theme)
+    {
+        if (!preg_match('/^[a-z0-9_-]{1,64}$/', $theme)) {
+            return array();
+        }
+        $json = Option::get('theme_settings_' . $theme, '');
+        if ($json === '') {
+            return array();
+        }
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? $decoded : array();
+    }
+
+    /**
+     * 渲染主题模板
+     *
+     * @param string $template 模板名（index/single/page/archive/search/404/login/register/forgot）
+     * @param array  $ctx      上下文数据
+     * @return void
+     */
+    public static function render($template, array $ctx = array())
+    {
+        $GLOBALS['cb_ctx'] = $ctx;
+        $file = self::dir() . '/' . $template . '.php';
+        if (!is_file($file)) {
+            $file = self::dir() . '/index.php';
+        }
+        // 模板函数文件（主题自有钩子/助手）
+        $functions = self::dir() . '/functions.php';
+        if (is_file($functions)) {
+            require_once $functions;
+        }
+        extract($ctx, EXTR_SKIP);
+        include $file;
+    }
+
+    /** 引入主题局部模板（header/footer/sidebar 等） */
+    public static function part($name)
+    {
+        $file = self::dir() . '/' . $name . '.php';
+        if (is_file($file)) {
+            include $file;
+        }
+    }
+
+    /**
+     * 扫描 themes/ 全部主题元数据（读取 style.css 头部）
+     *
+     * @return array 目录名 => 元数据
+     */
+    public static function discover()
+    {
+        $themes = array();
+        $dir = APP_ROOT . '/themes';
+        if (!is_dir($dir)) {
+            return $themes;
+        }
+        foreach (scandir($dir) as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $css = $dir . '/' . $item . '/style.css';
+            if (!is_file($css)) {
+                continue;
+            }
+            $head = file_get_contents($css, false, null, 0, 2048);
+            $meta = array('dir' => $item, 'name' => $item, 'author' => '', 'version' => '', 'description' => '');
+            $map = array('name' => 'Theme Name', 'author' => 'Author', 'version' => 'Version', 'description' => 'Description');
+            foreach ($map as $key => $label) {
+                if (preg_match('/\/\*[\s\S]*?' . preg_quote($label, '/') . '\s*:\s*([^\n*]+)/i', $head, $m)) {
+                    $meta[$key] = trim($m[1]);
+                }
+            }
+            $themes[$item] = $meta;
+        }
+        return $themes;
+    }
+}
+
+/* ---------- 模板 API（供 themes/ 内模板调用） ---------- */
+
+/** 站点名 */
+function site_name()
+{
+    return Option::get('site_name', '个人博客');
+}
+
+/** 一句话座右铭 */
+function site_motto()
+{
+    return Option::get('site_motto', '');
+}
+
+/** 站点描述（SEO） */
+function site_description()
+{
+    return Option::get('site_description', '');
+}
+
+/** 当前页面标题（含站点名后缀） */
+function page_title()
+{
+    $ctx = cb_ctx();
+    $title = isset($ctx['title']) && $ctx['title'] !== '' ? $ctx['title'] . ' - ' : '';
+    return $title . site_name();
+}
+
+/** 读取模板上下文 */
+function cb_ctx()
+{
+    return isset($GLOBALS['cb_ctx']) ? $GLOBALS['cb_ctx'] : array();
+}
+
+/** 站点作者卡片信息（首位管理员） */
+function site_author()
+{
+    static $author = null;
+    if ($author === false) {
+        return null;
+    }
+    if ($author !== null) {
+        return $author;
+    }
+    $author = DB::query('users')
+        ->where('role', '=', 'admin')
+        ->where('status', '=', 1)
+        ->orderBy('id', 'ASC')
+        ->first(array('id', 'username', 'nickname', 'avatar'));
+    if ($author === null) {
+        $author = false;
+        return null;
+    }
+    return $author;
+}
+
+/** 头像 URL（空头像回退默认） */
+function avatar_url($avatar)
+{
+    if (!empty($avatar)) {
+        return Router::base() . '/' . ltrim($avatar, '/');
+    }
+    return assets_url('admin/default-avatar.svg');
+}
+
+/** 自定义导航项（后台「导航管理」维护，存 options.nav_items，按保存顺序返回） */
+function nav_items()
+{
+    static $items = null;
+    if ($items !== null) {
+        return $items;
+    }
+    $items = array();
+    $json = Option::get('nav_items', '');
+    if ($json === '') {
+        return $items;
+    }
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return $items;
+    }
+    foreach ($decoded as $row) {
+        if (isset($row['title'], $row['url']) && $row['title'] !== '' && $row['url'] !== '') {
+            $items[] = array('title' => (string) $row['title'], 'url' => (string) $row['url']);
+        }
+    }
+    return $items;
+}
+
+/** 独立页面导航列表（如“关于我”） */
+function nav_pages()
+{
+    static $pages = null;
+    if ($pages !== null) {
+        return $pages;
+    }
+    $pages = DB::query('posts')
+        ->where('is_page', '=', 1)
+        ->where('status', '=', 'published')
+        ->orderBy('created_at', 'ASC')
+        ->select(array('title', 'slug'));
+    return $pages;
+}
+
+/** 分类导航列表（含文章数） */
+function nav_categories()
+{
+    static $list = null;
+    if ($list !== null) {
+        return $list;
+    }
+    $list = DB::query('categories')
+        ->orderBy('sort', 'ASC')
+        ->select(array('id', 'name', 'slug'));
+    // 附带已发布文章数（一次聚合查询）
+    $counts = array();
+    $rows = DB::query('posts')
+        ->where('status', '=', 'published')
+        ->where('is_page', '=', 0)
+        ->select(array('category_id'));
+    foreach ($rows as $row) {
+        $cid = (int) $row['category_id'];
+        $counts[$cid] = isset($counts[$cid]) ? $counts[$cid] + 1 : 1;
+    }
+    foreach ($list as &$cat) {
+        $cat['count'] = isset($counts[(int) $cat['id']]) ? $counts[(int) $cat['id']] : 0;
+    }
+    unset($cat);
+    return $list;
+}
+
+/** 当前文章列表（由控制器注入） */
+function the_posts()
+{
+    $ctx = cb_ctx();
+    return isset($ctx['posts']) ? $ctx['posts'] : array();
+}
+
+/** 文章详情 */
+function the_post()
+{
+    $ctx = cb_ctx();
+    return isset($ctx['post']) ? $ctx['post'] : null;
+}
+
+/** 渲染文章正文：Markdown→安全 HTML，并应用 post_content 过滤器 */
+function render_content($markdown)
+{
+    $html = Markdown::render($markdown);
+    return apply_filters('post_content', $html);
+}
+
+/** 分页 HTML */
+function paginate($page, $totalPages, $route, array $params = array())
+{
+    if ($totalPages <= 1) {
+        return '';
+    }
+    $html = '<nav class="pagination">';
+    $urlOf = function ($p) use ($route, $params) {
+        $params['page'] = $p;
+        return Router::url($route, $params);
+    };
+    if ($page > 1) {
+        $html .= '<a class="page-link" href="' . e($urlOf($page - 1)) . '">« 上一页</a>';
+    }
+    for ($i = 1; $i <= $totalPages; $i++) {
+        if ($totalPages > 10 && abs($i - $page) > 3 && $i !== 1 && $i !== $totalPages) {
+            if ($i === 2 || $i === $totalPages - 1) {
+                $html .= '<span class="page-dots">…</span>';
+            }
+            continue;
+        }
+        if ($i === $page) {
+            $html .= '<span class="page-link current">' . $i . '</span>';
+        } else {
+            $html .= '<a class="page-link" href="' . e($urlOf($i)) . '">' . $i . '</a>';
+        }
+    }
+    if ($page < $totalPages) {
+        $html .= '<a class="page-link" href="' . e($urlOf($page + 1)) . '">下一页 »</a>';
+    }
+    return $html . '</nav>';
+}
+
+/**
+ * 后台分页导航：仅多于 1 页时输出；页码 >10 时折叠为首尾 + 当前页附近，其余省略号
+ *
+ * @param int    $page       当前页码
+ * @param int    $totalPages 总页数
+ * @param string $urlBase    m=模块/动作 参数前缀（以 & 结尾），助手追加 page=N
+ * @return string
+ */
+function admin_pager($page, $totalPages, $urlBase)
+{
+    if ($totalPages <= 1) {
+        return '';
+    }
+    $visible = array();
+    for ($i = 1; $i <= $totalPages; $i++) {
+        if ($totalPages <= 10 || $i === 1 || $i === $totalPages || abs($i - $page) <= 2) {
+            $visible[] = $i;
+        }
+    }
+    $html = '<div class="pager">';
+    $prev = 0;
+    foreach ($visible as $i) {
+        if ($prev > 0 && $i - $prev > 1) {
+            $html .= '<span class="gap">…</span>';
+        }
+        if ($i === (int) $page) {
+            $html .= '<span class="cur">' . $i . '</span>';
+        } else {
+            $html .= '<a href="' . e(site_base_admin($urlBase . 'page=' . $i)) . '">' . $i . '</a>';
+        }
+        $prev = $i;
+    }
+    return $html . '</div>';
+}
+
+/** 页脚版权行 */
+function copyright_line()
+{
+    $startYear = Option::get('site_created_year', date('Y'));
+    $currentYear = date('Y');
+    $range = $startYear === $currentYear ? $currentYear : $startYear . '-' . $currentYear;
+    return '© ' . $range . ' ' . site_name() . ' All rights Reserved.';
+}
+
+/** 当前主题配置项（后台「模板管理 → 设置」维护，未设置返回缺省值） */
+function theme_setting($key, $default = '')
+{
+    $settings = Theme::settingsOf(Theme::current());
+    if (isset($settings[$key]) && (string) $settings[$key] !== '') {
+        return (string) $settings[$key];
+    }
+    return $default;
+}
+
+/** ICP 备案号（未配置返回空字符串，前台据此隐藏） */
+function icp_number()
+{
+    return theme_setting('icp_number');
+}
+
+/** 公安备案号全文（如“京公网安备 11040102700068 号”，未配置返回空字符串） */
+function gongan_number()
+{
+    return theme_setting('gongan_number');
+}
+
+/** 从公安备案文本中提取纯数字编号（用于拼接官方查询链接），提取失败返回空字符串 */
+function gongan_code($gongan = null)
+{
+    if ($gongan === null) {
+        $gongan = gongan_number();
+    }
+    if (preg_match('/(\d{6,})/', $gongan, $m)) {
+        return $m[1];
+    }
+    return '';
+}
+
+/** 页头输出点（meta + front_head 钩子） */
+function theme_head($extra = '')
+{
+    echo '<meta charset="utf-8">' . "\n";
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n";
+    echo '<title>' . e(page_title()) . '</title>' . "\n";
+    $desc = site_description();
+    if ($desc !== '') {
+        echo '<meta name="description" content="' . e($desc) . '">' . "\n";
+    }
+    echo '<link rel="stylesheet" href="' . e(Theme::assetsUrl('style.css')) . '">' . "\n";
+    if ($extra !== '') {
+        echo $extra . "\n";
+    }
+    do_action('front_head');
+}
+
+/** 页尾输出点 */
+function theme_footer()
+{
+    do_action('front_footer');
+    echo '<script src="' . e(Theme::assetsUrl('theme.js')) . '"></script>' . "\n";
+}
+
+/** 评论列表渲染数据 */
+function the_comments()
+{
+    $ctx = cb_ctx();
+    return isset($ctx['comments']) ? $ctx['comments'] : array();
+}

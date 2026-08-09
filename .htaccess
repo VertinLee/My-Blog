@@ -1,0 +1,32 @@
+# Apache mod_rewrite 伪静态规则（本博客系统）
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # 子目录部署时请修改为实际子目录，如 RewriteBase /blog/
+    RewriteBase /
+
+    # 敏感文件/目录拒绝访问：config.php 与 core/
+    RewriteRule ^config\.php$ - [F,L]
+    RewriteRule ^core/ - [F,L]
+
+    # 真实存在的文件/目录与独立入口直接放行
+    RewriteRule ^(install|user|assets|uploads|plugins|themes)(/|$) - [L]
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # 其余请求全部转前台入口（?r= 与 PATH_INFO 两种模式均可，此处用 ?r=）
+    RewriteRule ^(.*)$ index.php?r=$1 [QSA,L]
+</IfModule>
+
+# 禁止直接浏览配置与内核源码（双重防护之一，另一重为文件头部 defined('APP_BOOT') 守卫）
+<Files "config.php">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</Files>

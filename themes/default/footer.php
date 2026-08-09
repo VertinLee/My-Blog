@@ -1,0 +1,57 @@
+<?php
+/**
+ * 默认主题公共页脚：闭合 #content/#main、版权行、front_footer 钩子
+ * 约定：各页面模板只开启 <div id="content">，由本文件统一闭合
+ */
+defined('APP_BOOT') or exit;
+?>
+</div><!-- /#content -->
+
+<footer class="site-footer">
+    <p><?php echo e(copyright_line()); ?></p>
+    <?php // 备案信息：主题设置维护，未填写的项不展示，两项均填时以 | 分隔 ?>
+    <?php $footerIcp = icp_number(); ?>
+    <?php $footerGongan = gongan_number(); ?>
+    <?php if ($footerIcp !== '' || $footerGongan !== ''): ?>
+    <div class="footer-beian">
+        <?php if ($footerIcp !== ''): ?>
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="nofollow noopener"><?php echo e($footerIcp); ?></a>
+        <?php endif; ?>
+        <?php if ($footerIcp !== '' && $footerGongan !== ''): ?>
+        <span class="beian-divider">|</span>
+        <?php endif; ?>
+        <?php if ($footerGongan !== ''): ?>
+        <?php // 提取到数字时带编号查备案；提取失败则回退到通用查询页，不降级为纯文本 ?>
+        <?php $footerGonganCode = gongan_code($footerGongan); ?>
+        <?php $footerGonganUrl = $footerGonganCode !== ''
+            ? 'https://beian.mps.gov.cn/#/query/webSearch?code=' . $footerGonganCode
+            : 'https://beian.mps.gov.cn/#/query/webSearch'; ?>
+        <a href="<?php echo e($footerGonganUrl); ?>"
+           target="_blank" rel="nofollow noopener" class="beian-gongan">
+            <img src="<?php echo e(Theme::assetsUrl('gongan-icon.png')); ?>" alt="" class="gongan-icon"><?php echo e($footerGongan); ?>
+        </a>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+    <div class="footer-account">
+        <?php if (Auth::check()): ?>
+        <a href="<?php echo e(site_base_admin()); ?>">进入后台</a> ·
+        <form method="post" action="<?php echo e(Router::url('logout')); ?>" class="footer-logout-form">
+            <?php echo Csrf::field(); ?>
+            <button type="submit" class="footer-logout">登出</button>
+        </form>
+        <?php else: ?>
+        <a href="<?php echo e(Router::url('login')); ?>">登录</a>
+        <?php if (Option::get('register_disabled', '0') !== '1'): ?>
+        · <a href="<?php echo e(Router::url('register')); ?>">注册</a>
+        <?php endif; ?>
+        <?php endif; ?>
+    </div>
+</footer>
+
+</div><!-- /#main -->
+</div><!-- /.site-wrapper -->
+
+<?php theme_footer(); ?>
+</body>
+</html>

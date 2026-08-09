@@ -1,0 +1,134 @@
+<?php
+/**
+ * 默认主题：文章详情 + 评论区 + 评论表单（登录可见）
+ */
+defined('APP_BOOT') or exit;
+Theme::part('header');
+$singlePost = the_post();
+?>
+<div id="content">
+    <?php foreach (flash_pull() as $fm): ?>
+    <div class="<?php echo $fm['type'] === 'success' ? 'form-ok' : 'form-error'; ?>"><?php echo e($fm['text']); ?></div>
+    <?php endforeach; ?>
+
+    <article>
+        <header class="article-header">
+            <h1 class="article-title"><?php echo e($singlePost['title']); ?></h1>
+            <div class="article-meta">
+                <span><?php echo e($singlePost['author']['nickname']); ?></span>
+                <span class="meta-divider">·</span>
+                <span><?php echo e(date_fmt($singlePost['created_at'])); ?></span>
+                <?php if (!empty($singlePost['category'])): ?>
+                <span class="meta-divider">·</span>
+                <a href="<?php echo e(Router::url('category', array('slug' => $singlePost['category']['slug']))); ?>"><?php echo e($singlePost['category']['name']); ?></a>
+                <?php endif; ?>
+                <span class="meta-divider">·</span>
+                <span>阅读 <?php echo (int) $singlePost['views']; ?></span>
+                <?php if ($singlePost['status'] !== 'published'): ?><span class="badge">未发布预览</span><?php endif; ?>
+            </div>
+        </header>
+        <div class="article-content">
+            <?php echo render_content($singlePost['content']); ?>
+        </div>
+    </article>
+
+    <section class="comments-area">
+        <h2 class="comments-title">评论 (<?php echo count($comments); ?>)</h2>
+        <?php if (empty($comments)): ?>
+        <p class="empty-tip">暂无评论。</p>
+        <?php endif; ?>
+
+        <?php
+        // 组织为一层回复结构
+        $topComments = array();
+        $childComments = array();
+        foreach ($comments as $c) {
+            if ((int) $c['parent_id'] === 0) {
+                $topComments[] = $c;
+            } else {
+                $childComments[(int) $c['parent_id']][] = $c;
+            }
+        }
+
+        // 自己评论的编辑/删除（plan.md §5.2：三种登录角色均可删改自己的评论）
+        $singleEditId = isset($editCommentId) ? (int) $editCommentId : 0;
+        $singlePostUrl = Router::url('post', array(
+            'slug' => $singlePost['slug'] !== '' ? $singlePost['slug'] : (int) $singlePost['id'],
+            'id'   => (int) $singlePost['id'],
+        ));
+        $isOwnComment = function ($commentRow) {
+            return Auth::check() && (int) $commentRow['user_id'] === Auth::id();
+        };
+        // 评论正文：命中编辑态时输出行内编辑表单，否则输出原文 + 操作行
+        $renderCommentBody = function ($commentRow) use ($isOwnComment, $singleEditId, $singlePostUrl) {
+            $cid = (int) $commentRow['id'];
+            $own = $isOwnComment($commentRow);
+            if ($own && $singleEditId === $cid) {
+                echo '<div class="comment-content">';
+                echo '<form class="comment-edit-form" method="post" action="' . e(Router::url('comment_update')) . '">';
+                echo Csrf::field();
+                echo '<input type="hidden" name="comment_id" value="' . $cid . '">';
+                echo '<textarea name="content" maxlength="2000" required>' . e($commentRow['content']) . '</textarea>';
+                echo '<div class="edit-actions">';
+                echo '<button class="submit" type="submit">保存</button>';
+                echo '<a class="comment-action-link" href="' . e($singlePostUrl) . '#comment-' . $cid . '">取消</a>';
+                echo '</div></form></div>';
+                return;
+            }
+            echo '<div class="comment-content">' . nl2br(e($commentRow['content'])) . '</div>';
+            if ($own) {
+                // 伪静态回退模式下文章 URL 已含 ?r=，追加参数需改用 &
+                $sep = strpos($singlePostUrl, '?') === false ? '?' : '&';
+                echo '<div class="comment-actions">';
+                echo '<a class="comment-action-link" href="' . e($singlePostUrl . $sep . 'edit_comment=' . $cid) . '#comment-' . $cid . '">编辑</a>';
+                echo '<form class="comment-delete-form confirm-submit" data-confirm="确认删除这条评论？" method="post" action="' . e(Router::url('comment_delete')) . '">';
+                echo Csrf::field();
+                echo '<input type="hidden" name="comment_id" value="' . $cid . '">';
+                echo '<button class="comment-action-btn danger" type="submit">删除</button>';
+                echo '</form></div>';
+            }
+        };
+        ?>
+        <ul class="comment-list">
+            <?php foreach ($topComments as $c): ?>
+            <li class="comment" id="comment-<?php echo (int) $c['id']; ?>">
+                <div class="comment-author">
+                    <img class="avatar" src="<?php echo e(avatar_url($c['author']['avatar'])); ?>" alt="">
+                    <span><?php echo e($c['author']['nickname']); ?></span>
+                    <?php if ($c['status'] === 'pending'): ?><span class="badge">待审核</span><?php endif; ?>
+                </div>
+                <div class="comment-meta"><?php echo e(date_fmt($c['created_at'])); ?></div>
+                <?php $renderCommentBody($c); ?>
+                <?php if (isset($childComments[(int) $c['id']])): ?>
+                <ul class="children">
+                    <?php foreach ($childComments[(int) $c['id']] as $reply): ?>
+                    <li class="comment" id="comment-<?php echo (int) $reply['id']; ?>">
+                        <div class="comment-author">
+                            <img class="avatar" src="<?php echo e(avatar_url($reply['author']['avatar'])); ?>" alt="">
+                            <span><?php echo e($reply['author']['nickname']); ?></span>
+                            <?php if ($reply['status'] === 'pending'): ?><span class="badge">待审核</span><?php endif; ?>
+                        </div>
+                        <div class="comment-meta"><?php echo e(date_fmt($reply['created_at'])); ?></div>
+                        <?php $renderCommentBody($reply); ?>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php endif; ?>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+
+        <h3 class="comments-title">发表评论</h3>
+        <?php if (Auth::check()): ?>
+        <form class="comment-form" method="post" action="<?php echo e(Router::url('comment_save')); ?>">
+            <?php echo Csrf::field(); ?>
+            <input type="hidden" name="post_id" value="<?php echo (int) $singlePost['id']; ?>">
+            <input type="hidden" name="redirect" value="<?php echo e(Router::url('post', array('slug' => $singlePost['slug'] !== '' ? $singlePost['slug'] : (int) $singlePost['id'], 'id' => (int) $singlePost['id']))); ?>">
+            <p><textarea name="content" required placeholder="写下你的评论…"></textarea></p>
+            <p><button class="submit" type="submit">提交评论</button></p>
+        </form>
+        <?php else: ?>
+        <p class="form-hint"><a href="<?php echo e(Router::url('login')); ?>">登录</a>后才可以发表评论。</p>
+        <?php endif; ?>
+    </section>
+<?php Theme::part('footer'); ?>

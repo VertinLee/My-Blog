@@ -1,0 +1,43 @@
+# Nginx 伪静态配置示例（本博客系统）
+# 将 /path/to/blog 替换为站点根目录；PHP 按实际 FastCGI 监听调整
+
+server {
+    listen 80;
+    server_name example.com;
+    root /path/to/blog;
+    index index.php;
+
+    # 管理后台强烈建议启用 HTTPS（等保二级·传输防窃听），此处省略证书配置
+
+    # 敏感文件与内核目录禁止访问
+    location = /config.php { deny all; }
+    location ^~ /core/ { deny all; }
+
+    # uploads 禁止执行 PHP
+    location ^~ /uploads/ {
+        location ~ \.php$ { deny all; }
+    }
+
+    # 插件/主题/内核中的 PHP 文件一律不允许直接执行（均有 APP_BOOT 守卫，双保险）
+    location ~ ^/(plugins|themes|core)/.*\.php$ { deny all; }
+
+    # /install/ 与 /user/ 无需单列：未命中以上规则时自然走下方 PHP 解析
+
+    # 伪静态：非真实文件/目录全部转前台入口
+    location / {
+        try_files $uri $uri/ @rewrite;
+    }
+    location @rewrite {
+        rewrite ^/(.*)$ /index.php?r=$1 last;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_index index.php;
+        include fastcgi.conf;
+    }
+
+    # 禁止访问隐藏文件
+    location ~ /\. { deny all; }
+}

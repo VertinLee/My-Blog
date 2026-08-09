@@ -1,0 +1,80 @@
+<?php
+/**
+ * 默认主题侧边栏：站名/座右铭 + 作者卡片 + 搜索框 + 导航 + 分类（带文章数）
+ */
+defined('APP_BOOT') or exit;
+$authorInfo = site_author();
+?>
+<aside id="sidebar" role="complementary">
+    <div class="sidebar-site-title">
+        <a href="<?php echo e(Router::url('home')); ?>"><?php echo e(site_name()); ?></a>
+    </div>
+    <?php if (site_motto() !== ''): ?>
+    <p class="sidebar-site-description"><?php echo e(site_motto()); ?></p>
+    <?php endif; ?>
+
+    <?php if ($authorInfo): ?>
+    <img class="sidebar-avatar" src="<?php echo e(avatar_url($authorInfo['avatar'])); ?>" alt="<?php echo e($authorInfo['nickname']); ?>">
+    <div class="sidebar-author-name"><?php echo e($authorInfo['nickname']); ?></div>
+    <div class="sidebar-author-bio"><?php echo e(Option::get('author_bio', '保持热爱，奔赴山海。')); ?></div>
+    <?php endif; ?>
+
+    <?php // 头像下方账号入口：未登录显示登录/注册，已登录显示仪表盘 ?>
+    <div class="sidebar-auth">
+        <?php if (Auth::check()): ?>
+        <a class="sidebar-auth-btn primary" href="<?php echo e(site_base_admin()); ?>">仪表盘</a>
+        <?php else: ?>
+        <a class="sidebar-auth-btn primary" href="<?php echo e(Router::url('login')); ?>">登录</a>
+        <?php if (Option::get('register_disabled', '0') !== '1'): ?>
+        <a class="sidebar-auth-btn" href="<?php echo e(Router::url('register')); ?>">注册</a>
+        <?php endif; ?>
+        <?php endif; ?>
+    </div>
+
+    <div class="sidebar-search">
+        <form role="search" method="get" action="<?php echo e(Router::url('search')); ?>">
+            <?php if (!Router::rewriteEnabled()): ?>
+            <input type="hidden" name="r" value="search">
+            <?php endif; ?>
+            <label>
+                <span class="sidebar-site-description">搜索：</span>
+                <input type="search" class="search-field" placeholder="搜索..." name="q" value="">
+            </label>
+        </form>
+    </div>
+
+    <div class="sidebar-section">
+        <h3 class="sidebar-section-title">导航</h3>
+        <ul class="sidebar-menu">
+            <li><a href="<?php echo e(Router::url('home')); ?>">首页</a></li>
+            <?php foreach (nav_pages() as $navPage): ?>
+            <li><a href="<?php echo e(Router::url('page', array('slug' => $navPage['slug']))); ?>"><?php echo e($navPage['title']); ?></a></li>
+            <?php endforeach; ?>
+            <?php // 自定义导航项：后台「导航管理」增删，URL 保存时已过白名单校验 ?>
+            <?php foreach (nav_items() as $navItem): ?>
+            <li><a href="<?php echo e($navItem['url']); ?>"><?php echo e($navItem['title']); ?></a></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+
+    <div class="sidebar-section">
+        <h3 class="sidebar-section-title">分类</h3>
+        <ul class="sidebar-categories">
+            <?php foreach (nav_categories() as $cat): ?>
+            <li>
+                <a href="<?php echo e(Router::url('category', array('slug' => $cat['slug']))); ?>">
+                    <?php echo e($cat['name']); ?>
+                    <span class="cat-count"><?php echo (int) $cat['count']; ?></span>
+                </a>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+
+    <?php // 明暗切换收入侧边栏内，不再悬浮于页面角落 ?>
+    <div class="sidebar-section">
+        <button type="button" class="darkmode-toggle" id="darkmode-toggle" aria-label="切换暗色模式" title="切换暗色模式">
+            <span id="darkmode-icon">☾</span>
+        </button>
+    </div>
+</aside>

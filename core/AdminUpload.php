@@ -1,0 +1,80 @@
+<?php
+/**
+ * 后台图片上传：fileinfo 真实 MIME 校验 + 白名单 + 随机重命名
+ * imageAction 能力点 upload（文章配图/封面）；avatarAction 能力点 edit_profile（个人头像，全体登录用户可用）
+ * 上传目录 uploads/年/月/，禁止 PHP 执行（见 uploads/.htaccess 与 nginx 规则）
+ */
+defined('APP_BOOT') or exit;
+
+class AdminUpload
+{
+    /** MIME → 扩展名白名单 */
+    private static $mimeMap = array(
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+        'image/gif'  => 'gif',
+    );
+
+    /** 图片上传接口（JSON 响应，供 Vditor 与封面上传调用） */
+    public static function imageAction()
+    {
+        Auth::require_cap('upload');
+        $relative = self::saveImage(2 * 1024 * 1024, '图片大小须在 2MB 以内');
+        blog_log('post', 'upload.image', 'success', array('path' => $relative));
+        json_out(array('code' => 0, 'msg' => 'ok', 'data' => array(
+            'url' => Router::base() . '/' . $relative,
+        )));
+    }
+
+    /** 头像上传接口（个人资料页调用，全体登录用户可用，上限 1MB） */
+    public static function avatarAction()
+    {
+        Auth::require_cap('edit_profile');
+        $relative = self::saveImage(1024 * 1024, '头像大小须在 1MB 以内');
+        blog_log('user', 'upload.avatar', 'success', array('path' => $relative));
+        // 同时返回相对路径：个人资料表只接受 uploads/ 开头的相对路径
+        json_out(array('code' => 0, 'msg' => 'ok', 'data' => array(
+            'url' => Router::base() . '/' . $relative,
+            'path' => $relative,
+        )));
+    }
+
+    /**
+     * 统一落盘逻辑：校验上传文件 → fileinfo 真实 MIME 白名单 → 随机重命名存入 uploads/年/月/
+     *
+     * @param int    $maxBytes 大小上限（字节）
+     * @param string $sizeMsg  超限提示
+     * @return string uploads/ 下相对路径
+     */
+    private static function saveImage($maxBytes, $sizeMsg)
+    {
+        if (empty($_FILES['file'])) {
+            json_out(array('code' => 1, 'msg' => '未收到文件'));
+        }
+        $file = $_FILES['file'];
+        if ((int) $file['error'] !== UPLOAD_ERR_OK) {
+            json_out(array('code' => 1, 'msg' => '上传失败（错误码 ' . (int) $file['error'] . '）'));
+        }
+        if ((int) $file['size'] > $maxBytes || (int) $file['size'] <= 0) {
+            json_out(array('code' => 1, 'msg' => $sizeMsg));
+        }
+        // fileinfo 检测真实 MIME（不信任客户端声明的扩展名/类型）
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($file['tmp_name']);
+        if (!isset(self::$mimeMap[$mime])) {
+            json_out(array('code' => 1, 'msg' => '仅支持 jpg/png/webp/gif 图片'));
+        }
+
+        $subDir = date('Y/m');
+        $targetDir = APP_ROOT . '/uploads/' . $subDir;
+        if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true)) {
+            json_out(array('code' => 1, 'msg' => '上传目录创建失败'));
+        }
+        $name = random_string(16) . '.' . self::$mimeMap[$mime];
+        if (!move_uploaded_file($file['tmp_name'], $targetDir . '/' . $name)) {
+            json_out(array('code' => 1, 'msg' => '文件保存失败'));
+        }
+        return 'uploads/' . $subDir . '/' . $name;
+    }
+}
