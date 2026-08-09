@@ -32,7 +32,10 @@ defined('APP_BOOT') or exit;
                 <?php else: ?><span class="tag">未启用</span><?php endif; ?>
             </td>
             <td>
+                <?php // 设置按钮仅对提供 settings.php 清单的主题展示 ?>
+                <?php if (!empty(Theme::settingsSchema($themeDir))): ?>
                 <a class="btn small gray" href="<?php echo e(site_base_admin('theme/setting&dir=' . rawurlencode($themeDir))); ?>">设置</a>
+                <?php endif; ?>
                 <?php if ($themeDir !== $active): ?>
                 <form method="post" action="<?php echo e(site_base_admin('theme/activate')); ?>" style="display:inline">
                     <?php echo Csrf::field(); ?>

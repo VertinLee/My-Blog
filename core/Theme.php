@@ -91,6 +91,77 @@ class Theme
     }
 
     /**
+     * 读取某主题的设置清单（主题目录内可选 settings.php 声明，后台设置页据此渲染）
+     *
+     * 清单为 key => 定义数组；定义字段白名单：label/type/hint/maxlength/options/default。
+     * type 支持 text/textarea/checkbox/select；非法条目整体丢弃。
+     * 插件可经 theme_settings_schema 过滤器追加字段。
+     *
+     * @param string $theme 主题目录名
+     * @return array 清洗后的字段清单，未提供返回空数组
+     */
+    public static function settingsSchema($theme)
+    {
+        static $cache = array();
+        if (array_key_exists($theme, $cache)) {
+            return $cache[$theme];
+        }
+        $schema = array();
+        if (preg_match('/^[a-z0-9_-]{1,64}$/', $theme)) {
+            $file = self::dirOf($theme) . '/settings.php';
+            if (is_file($file)) {
+                $raw = include $file;
+                if (is_array($raw)) {
+                    $schema = self::sanitizeSchema($raw);
+                }
+            }
+        }
+        $schema = apply_filters('theme_settings_schema', $schema, $theme);
+        $cache[$theme] = is_array($schema) ? $schema : array();
+        return $cache[$theme];
+    }
+
+    /** 清单清洗：键名与字段定义白名单校验，防止主题/插件注入非法字段结构 */
+    private static function sanitizeSchema(array $raw)
+    {
+        $schema = array();
+        foreach ($raw as $key => $def) {
+            if (!is_string($key) || !preg_match('/^[a-z0-9_]{1,64}$/', $key) || !is_array($def)) {
+                continue;
+            }
+            $type = isset($def['type']) ? (string) $def['type'] : 'text';
+            if (!in_array($type, array('text', 'textarea', 'checkbox', 'select'), true)) {
+                continue;
+            }
+            $field = array(
+                'label' => isset($def['label']) ? mb_substr((string) $def['label'], 0, 100) : $key,
+                'type'  => $type,
+                'hint'  => isset($def['hint']) ? mb_substr((string) $def['hint'], 0, 255) : '',
+                'default' => isset($def['default']) ? mb_substr((string) $def['default'], 0, 500) : '',
+            );
+            $maxLen = isset($def['maxlength']) ? (int) $def['maxlength'] : 255;
+            $field['maxlength'] = max(1, min($maxLen, 500));
+            if ($type === 'select') {
+                // 选项键同样白名单校验；键即存储值，值为展示文案
+                $opts = isset($def['options']) && is_array($def['options']) ? $def['options'] : array();
+                $options = array();
+                foreach ($opts as $optValue => $optLabel) {
+                    $optKey = (string) $optValue;
+                    if (preg_match('/^[a-z0-9_]{1,64}$/', $optKey)) {
+                        $options[$optKey] = mb_substr((string) $optLabel, 0, 100);
+                    }
+                }
+                if (empty($options)) {
+                    continue;
+                }
+                $field['options'] = $options;
+            }
+            $schema[$key] = $field;
+        }
+        return $schema;
+    }
+
+    /**
      * 扫描 themes/ 全部主题元数据（读取 style.css 头部）
      *
      * @return array 目录名 => 元数据

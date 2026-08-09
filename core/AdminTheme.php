@@ -56,7 +56,7 @@ class AdminTheme
         redirect(site_base_admin('theme/list'));
     }
 
-    /** 主题设置页（按主题目录独立存储，存 options.theme_settings_{dir}） */
+    /** 主题设置页（表单由主题 settings.php 清单驱动，存 options.theme_settings_{dir}） */
     public static function settingAction()
     {
         Auth::require_cap('manage_themes');
@@ -69,11 +69,12 @@ class AdminTheme
         Admin::render('主题设置', 'theme_setting', array(
             'dir'      => $dir,
             'name'     => $themes[$dir]['name'],
+            'schema'   => Theme::settingsSchema($dir),
             'settings' => Theme::settingsOf($dir),
         ));
     }
 
-    /** 保存主题设置：ICP/公安备案号（留空即前台不展示） */
+    /** 保存主题设置：仅接收清单内字段，按声明类型走对应输入校验器 */
     public static function settingSaveAction()
     {
         Auth::require_cap('manage_themes');
@@ -83,10 +84,20 @@ class AdminTheme
             flash_set('error', '主题不存在');
             redirect(site_base_admin('theme/list'));
         }
-        $settings = array(
-            'icp_number'    => input_text('icp_number', '', 64, 'post'),
-            'gongan_number' => input_text('gongan_number', '', 100, 'post'),
-        );
+        $schema = Theme::settingsSchema($dir);
+        $settings = array();
+        foreach ($schema as $key => $field) {
+            if ($field['type'] === 'textarea') {
+                $settings[$key] = input_longtext($key, $field['default']);
+            } elseif ($field['type'] === 'checkbox') {
+                $settings[$key] = input_int($key, 0, 'post') === 1 ? '1' : '0';
+            } elseif ($field['type'] === 'select') {
+                $allowed = array_keys($field['options']);
+                $settings[$key] = input_enum($key, $allowed, $field['default'], 'post');
+            } else {
+                $settings[$key] = input_text($key, $field['default'], $field['maxlength'], 'post');
+            }
+        }
         Option::set('theme_settings_' . $dir, json_encode($settings, JSON_UNESCAPED_UNICODE));
         blog_log('template', 'theme.setting', 'success', array('theme' => $dir));
         flash_set('success', '主题设置已保存');
