@@ -35,5 +35,5 @@ function default_theme_render_js()
     if (is_file($vendor . '/highlight.js/highlight.min.js')) {
         echo '<script src="' . e(assets_url('vendor/highlight.js/highlight.min.js')) . '"></script>' . "\n";
     }
-    echo '<script src="' . e(assets_url('front/render.js')) . '"></script>' . "\n";
+    echo '<script src="' . e(Theme::assetsUrl('js/render.js')) . '"></script>' . "\n";
 }

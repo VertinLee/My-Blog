@@ -82,6 +82,6 @@ Theme::part('header');
     };
     </script>
     <script src="<?php echo e(assets_url('front/verify.js')); ?>"></script>
-    <script src="<?php echo e(assets_url('front/pwd_check.js')); ?>"></script>
-    <script src="<?php echo e(assets_url('front/register_check.js')); ?>"></script>
+    <script src="<?php echo e(Theme::assetsUrl('js/pwd_check.js')); ?>"></script>
+    <script src="<?php echo e(Theme::assetsUrl('js/register_check.js')); ?>"></script>
 <?php Theme::part('footer'); ?>
