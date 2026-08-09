@@ -90,6 +90,13 @@ class AdminPost
             redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
         }
 
+        // slug 不得为纯数字：文章路由 /post/{key}.html 对纯数字 key 按 id 解析，
+        // 纯数字 slug 会永远被 id 查找拦截而无法访问；页面路由同库同规则，一并限制
+        if ($slug !== '' && ctype_digit($slug)) {
+            flash_set('error', '别名（slug）不能为纯数字，避免与文章 ID 访问冲突');
+            redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
+        }
+
         // slug 唯一性校验
         if ($slug !== '') {
             $q = DB::query('posts')->where('slug', '=', $slug);

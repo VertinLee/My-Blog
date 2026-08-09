@@ -40,7 +40,7 @@ if ($currentStatus === 'pending' && !isset($statusOptions['pending'])) {
 
     <div class="form-inline" style="margin-bottom:14px">
         <div class="form-row" style="margin:0">
-            <label>中文释义（slug），可选，用于伪静态 URL</label>
+            <label>别名（slug），可选，用于伪静态 URL；小写字母/数字/连字符，不能为纯数字</label>
             <input type="text" name="slug" value="<?php echo $post ? e($post['slug']) : ''; ?>" pattern="[a-z0-9-]*">
         </div>
         <div class="form-row" style="margin:0">
