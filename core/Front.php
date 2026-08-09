@@ -100,10 +100,12 @@ class Front
         foreach ($extraWhere as $w) {
             $q->where($w[0], $w[1], $w[2]);
         }
-        $posts = $q->orderBy('created_at', 'DESC')
+        $posts = $q->orderBy('is_top', 'DESC')->orderBy('created_at', 'DESC')
             ->limit($perPage, ($page - 1) * $perPage)
             ->select();
         self::attachAuthors($posts);
+        // 插件可排序/修饰当前页文章（总数与分页在此之前已定，不宜移除条目）
+        $posts = apply_filters('front_posts', $posts, $route);
 
         Theme::render('index', array(
             'page_type'  => 'index',
@@ -213,10 +215,12 @@ class Front
         foreach ($extraWhere as $w) {
             $q->where($w[0], $w[1], $w[2]);
         }
-        $posts = $q->orderBy('created_at', 'DESC')
+        $posts = $q->orderBy('is_top', 'DESC')->orderBy('created_at', 'DESC')
             ->limit($perPage, ($page - 1) * $perPage)
             ->select();
         self::attachAuthors($posts);
+        // 插件可排序/修饰当前页文章（总数与分页在此之前已定，不宜移除条目）
+        $posts = apply_filters('front_posts', $posts, $route);
 
         Theme::render('archive', array(
             'page_type'   => 'archive',
@@ -251,10 +255,12 @@ class Front
                 ->where('status', '=', 'published')
                 ->where('is_page', '=', 0)
                 ->likeAny(array('title', 'content', 'excerpt'), $kw);
-            $posts = $q->orderBy('created_at', 'DESC')
+            $posts = $q->orderBy('is_top', 'DESC')->orderBy('created_at', 'DESC')
                 ->limit($perPage, ($page - 1) * $perPage)
                 ->select();
             self::attachAuthors($posts);
+            // 插件可排序/修饰当前页文章（总数与分页在此之前已定，不宜移除条目）
+            $posts = apply_filters('front_posts', $posts, 'search');
         }
         Theme::render('search', array(
             'page_type'   => 'search',

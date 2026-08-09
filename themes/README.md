@@ -88,8 +88,9 @@ Description: 主题描述（后台列表展示，截断 40 字）
   `<span class="pwd-match" aria-live="polite">` 占位（参考
   `themes/default/forgot.php`）。服务端终判见 `Auth::validate_password_strength`。
 
-文章行常用字段：`id`、`title`、`slug`、`excerpt`、`cover`、`views`、
-`created_at`、`author`（`username`/`nickname`/`avatar`）。
+文章行常用字段：`id`、`title`、`slug`（可为 NULL，URL 生成自动回退 id）、
+`excerpt`、`cover`、`views`、`created_at`、`is_top`（置顶标记，非 0 时默认主题
+在列表标题前展示「置顶」徽标）、`author`（`username`/`nickname`/`avatar`）。
 文章正文必须经 `render_content($post['content'])` 输出（Markdown 解析 + 白名单 XSS 过滤）。
 
 ## 4. 模板 API（`core/Theme.php`）
@@ -179,6 +180,7 @@ add_filter('post_content', 'my_theme_content');
 | 钩子 | 位置 | 说明 |
 |---|---|---|
 | `auth_form_footer` | `login.php` 登录表单下方（卡片内） | `do_action('auth_form_footer', 'login')`，第三方登录入口（如 QQ 图标） |
+| `post_card_before` / `post_card_after` | `index.php` / `archive.php` / `search.php` 每个文章卡片前后 | `do_action('post_card_before', $postItem, $context)`，供插件加徽标/推荐位等 |
 
 缺失这些输出点不会报错，但会导致对应插件功能在新主题上无法展示。
 

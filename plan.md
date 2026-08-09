@@ -312,14 +312,21 @@ id / name / slug UNIQUE / description / sort。
 |---|---|---|
 | `init` | action | 内核引导完成 |
 | `front_head` / `front_footer` | action | 前台页头/页尾输出点 |
+| `admin_head` / `admin_footer` | action | 后台页头/页尾输出点 |
 | `post_content` | filter | 文章正文渲染后输出前 |
+| `front_posts` | filter | 首页/归档/搜索列表当前页文章（排序/修饰；分页已定，不宜移除） |
 | `comment_before_save` | filter | 评论入库前（可拦截/改写） |
 | `admin_menu` | action | 注册后台菜单项/设置页 |
+| `route_parse` / `front_route_{名}` | filter/action | 插件认领自定义路由（OAuth 回调/Webhook） |
 | `user_register` | action | 注册前置校验（验证码核验在此接入） |
 | `password_reset` | action | 找回密码前置校验 |
 | `send_verify_code` | filter | 发送验证码：插件返回 true 表示已接管发送 |
 | `verify_code_check` | filter | 验证码核验：插件返回 bool |
 | `plugin_activate` / `plugin_deactivate` / `plugin_uninstall` | action | 插件生命周期 |
+
+另有主题/视图触发的注入点（默认主题已实现，见 `themes/README.md` §5.1 与
+`plugins/README.md` §3）：`auth_form_footer`（登录表单下方）、
+`post_card_before/after`（列表卡片前后）、`profile_cards`（后台个人资料页）。
 
 ### 7.4 插件 API
 `plugin_option($slug,$key,$default)`、`plugin_option_update()`、`plugin_log($action,$detail)`（接统一日志）、`plugin_url($slug,$path)`、设置页渲染辅助函数。

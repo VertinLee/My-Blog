@@ -25,8 +25,9 @@ Theme::part('header');
 
     <?php foreach ($posts as $postItem): ?>
     <?php $postUrl = Router::url('post', array('slug' => $postItem['slug'] !== '' ? $postItem['slug'] : (int) $postItem['id'], 'id' => (int) $postItem['id'])); ?>
+    <?php do_action('post_card_before', $postItem, 'index'); /* 插件注入点：卡片前 */ ?>
     <article class="post-card">
-        <h2 class="post-card-title"><a href="<?php echo e($postUrl); ?>"><?php echo e($postItem['title']); ?></a></h2>
+        <h2 class="post-card-title"><?php if (!empty($postItem['is_top'])): ?><span class="badge">置顶</span> <?php endif; ?><a href="<?php echo e($postUrl); ?>"><?php echo e($postItem['title']); ?></a></h2>
         <div class="post-card-meta">
             <a href="<?php echo e(Router::url('author', array('id' => (int) $postItem['author_id']))); ?>"><?php echo e($postItem['author']['nickname']); ?></a>
             <span class="meta-divider">·</span>
@@ -41,6 +42,7 @@ Theme::part('header');
         <p class="post-card-excerpt"><?php echo e(!empty($postItem['excerpt']) ? $postItem['excerpt'] : excerpt_of($postItem['content'])); ?></p>
         <a class="post-card-readmore" href="<?php echo e($postUrl); ?>">继续阅读</a>
     </article>
+    <?php do_action('post_card_after', $postItem, 'index'); /* 插件注入点：卡片后 */ ?>
     <?php endforeach; ?>
 
     <?php echo paginate($page, $totalPages, $route, $routeParams); ?>

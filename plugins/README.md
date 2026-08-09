@@ -52,6 +52,7 @@ defined('APP_BOOT') or exit;
 | `admin_head` | action | 无 | 后台 `</head>` 前输出点（插件后台样式/脚本） |
 | `admin_footer` | action | 无 | 后台 `</body>` 前输出点 |
 | `post_content` | filter | `$html` | 文章正文渲染后、输出前（可追加处理） |
+| `front_posts` | filter | `$posts, $context` | 首页/归档/搜索列表当前页文章数组，可排序/修饰（`$context` 为 home/category/author/search；分页已在此之前确定，不宜移除条目） |
 | `comment_before_save` | filter | `$data` | 评论入库前，可改写或拦截 |
 | `admin_menu` | action | 无 | 注册后台菜单项/设置页 |
 | `user_register` | action | 注册数据 | 注册前置校验点位 |
@@ -62,6 +63,7 @@ defined('APP_BOOT') or exit;
 | `route_parse` | filter | `$route, $path` | 未知路径落入 404 前认领自定义路由 |
 | `front_route_{路由名}` | action | `$params` | 接管经 `route_parse` 认领的路由 |
 | `auth_form_footer` | action | `$page` | 登录表单下方注入点（主题触发，默认 `$page='login'`） |
+| `post_card_before` / `post_card_after` | action | `$post, $context` | 列表页文章卡片前/后注入点（主题触发，适合加徽标/推荐位等） |
 | `profile_cards` | action | `$user` | 后台个人资料页追加卡片（内核视图触发） |
 | `plugin_activate` / `plugin_deactivate` / `plugin_uninstall` | action | `$slug` | 插件生命周期 |
 

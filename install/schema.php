@@ -46,6 +46,7 @@ function install_schema($prefix)
         `cover` VARCHAR(255) NOT NULL DEFAULT '',
         `status` ENUM('draft','pending','published','trash') NOT NULL DEFAULT 'draft',
         `is_page` TINYINT NOT NULL DEFAULT 0,
+        `is_top` TINYINT NOT NULL DEFAULT 0,
         `views` INT UNSIGNED NOT NULL DEFAULT 0,
         `created_at` DATETIME NOT NULL,
         `updated_at` DATETIME NOT NULL,

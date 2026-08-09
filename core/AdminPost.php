@@ -27,7 +27,7 @@ class AdminPost
         if ($status !== 'all') {
             $q->where('status', '=', $status);
         }
-        $posts = $q->orderBy('id', 'DESC')->limit($perPage, ($page - 1) * $perPage)->select();
+        $posts = $q->orderBy('is_top', 'DESC')->orderBy('id', 'DESC')->limit($perPage, ($page - 1) * $perPage)->select();
 
         // 作者与分类映射
         $users = array();
@@ -45,6 +45,27 @@ class AdminPost
             'posts' => $posts, 'status' => $status, 'page' => $page,
             'totalPages' => $totalPages, 'users' => $users, 'cats' => $cats,
         ));
+    }
+
+    /** 切换置顶（属站点级编排动作，限 moderate_posts 权限；仅已发布文章可置顶） */
+    public static function topAction()
+    {
+        Auth::require_cap('moderate_posts');
+        $id = input_int('id', 0, 'post');
+        // 返回列表页时保持当前状态筛选
+        $status = input_enum('status', array('all', 'published', 'pending', 'draft', 'trash'), 'all', 'post');
+        $back = site_base_admin('post/list' . ($status !== 'all' ? '&status=' . $status : ''));
+
+        $post = DB::query('posts')->where('id', '=', $id)->where('is_page', '=', 0)->first();
+        if (!$post || $post['status'] !== 'published') {
+            flash_set('error', '仅已发布文章可置顶');
+            redirect($back);
+        }
+        $new = empty($post['is_top']) ? 1 : 0;
+        DB::update('posts', array('is_top' => $new), array('id' => (int) $id));
+        blog_log('content', 'post.top', 'success', array('post_id' => (int) $id, 'is_top' => $new));
+        flash_set('success', $new === 1 ? '已置顶，前台列表将优先展示' : '已取消置顶');
+        redirect($back);
     }
 
     /** 文章编辑页（新建/修改） */

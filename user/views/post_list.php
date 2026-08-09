@@ -30,7 +30,7 @@ $statusTags = array(
         <?php foreach ($posts as $postItem): ?>
         <tr>
             <td><?php echo (int) $postItem['id']; ?></td>
-            <td><?php echo e($postItem['title']); ?><?php if ((int) $postItem['is_page'] === 1): ?> <span class="tag gray">页面</span><?php endif; ?></td>
+            <td><?php echo e($postItem['title']); ?><?php if ((int) $postItem['is_page'] === 1): ?> <span class="tag gray">页面</span><?php endif; ?><?php if (!empty($postItem['is_top'])): ?> <span class="tag green">置顶</span><?php endif; ?></td>
             <td><?php echo isset($users[(int) $postItem['author_id']]) ? e($users[(int) $postItem['author_id']]) : '-'; ?></td>
             <td><?php echo isset($cats[(int) $postItem['category_id']]) ? e($cats[(int) $postItem['category_id']]) : '-'; ?></td>
             <td><?php echo $statusTags[$postItem['status']]; ?></td>
@@ -47,6 +47,14 @@ $statusTags = array(
                 <?php endif; ?>
                 <?php if ($postItem['status'] !== 'trash'): ?>
                 <a class="btn small" href="<?php echo e(site_base_admin('post/edit&id=' . (int) $postItem['id'])); ?>">编辑</a>
+                <?php endif; ?>
+                <?php if ($postItem['status'] === 'published' && Auth::check_cap('moderate_posts')): ?>
+                <form method="post" action="<?php echo e(site_base_admin('post/top')); ?>" style="display:inline">
+                    <?php echo Csrf::field(); ?>
+                    <input type="hidden" name="id" value="<?php echo (int) $postItem['id']; ?>">
+                    <input type="hidden" name="status" value="<?php echo e($status); ?>">
+                    <button class="btn small <?php echo empty($postItem['is_top']) ? 'gray' : ''; ?>" type="submit"><?php echo empty($postItem['is_top']) ? '置顶' : '取消置顶'; ?></button>
+                </form>
                 <?php endif; ?>
                 <?php if (Auth::check_cap('delete_posts')): ?>
                     <?php if ($postItem['status'] === 'trash'): ?>
