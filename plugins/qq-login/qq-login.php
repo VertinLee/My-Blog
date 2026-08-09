@@ -31,10 +31,43 @@ function qq_login_appkey()
     return (string) plugin_option('qq-login', 'appkey', '');
 }
 
-/** 是否已完成配置 */
+/**
+ * 网站域名（含协议，管理员手工填写）：QQ 回调要求绝对 URL，
+ * 不能依赖当前请求域名（反向代理/多域名场景不可靠）
+ *
+ * @return string 末尾不带斜杠，未配置返回空串
+ */
+function qq_login_domain()
+{
+    return rtrim((string) plugin_option('qq-login', 'domain', ''), '/');
+}
+
+/**
+ * 域名输入规范化：补全 https://、去尾斜杠；白名单校验防注入
+ *
+ * @param string $input 原始输入
+ * @return string|false 规范化结果；非法返回 false，空串表示清空
+ */
+function qq_login_normalize_domain($input)
+{
+    $value = trim((string) $input);
+    if ($value === '') {
+        return '';
+    }
+    if (!preg_match('#^https?://#i', $value)) {
+        $value = 'https://' . $value;
+    }
+    // 仅允许协议 + 域名/端口 + 可选子目录，杜绝空格与特殊字符
+    if (!preg_match('#^https?://[A-Za-z0-9.-]+(:\d{1,5})?(/[A-Za-z0-9/._-]*)?$#', $value)) {
+        return false;
+    }
+    return rtrim($value, '/');
+}
+
+/** 是否已完成配置（域名缺失同样视为未配置：回调地址无法拼成绝对 URL） */
 function qq_login_configured()
 {
-    return qq_login_appid() !== '' && qq_login_appkey() !== '';
+    return qq_login_appid() !== '' && qq_login_appkey() !== '' && qq_login_domain() !== '';
 }
 
 /**
@@ -66,10 +99,10 @@ function qq_login_front_url($path)
     return Router::base() . '/index.php?r=' . rawurlencode($path);
 }
 
-/** QQ 开放平台登记的回调地址 */
+/** QQ 开放平台登记的回调地址（绝对 URL：配置的域名 + 站内路径） */
 function qq_login_callback_url()
 {
-    return qq_login_front_url('qqlogin-callback');
+    return qq_login_domain() . qq_login_front_url('qqlogin-callback');
 }
 
 /* ================= 授权链接与 state 防伪 ================= */
@@ -462,34 +495,44 @@ function qq_login_register_page()
     register_plugin_page('qq-login', 'QQ登录', 'qq_login_settings_page');
 }
 
-/** 设置页：APP ID / APP Key 配置 + 回调地址展示（供开放平台登记） */
+/** 设置页：网站域名 / APP ID / APP Key 配置 + 回调地址展示（供开放平台登记） */
 function qq_login_settings_page()
 {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 后台 POST 已由内核统一校验 CSRF
         $appid = input_text('qq_appid', '', 64, 'post');
         $appkey = input_text('qq_appkey', '', 128, 'post');
+        $domain = qq_login_normalize_domain(input_text('qq_domain', '', 128, 'post'));
         plugin_option_update('qq-login', 'appid', $appid);
         // APP Key 留空表示保持原值不变（避免明文回显导致的泄露风险）
         if ($appkey !== '') {
             plugin_option_update('qq-login', 'appkey', $appkey);
+        }
+        if ($domain === false) {
+            echo '<div class="flash err">网站域名格式不合法，未保存该项（需形如 https://blog.example.com）</div>';
+        } else {
+            plugin_option_update('qq-login', 'domain', $domain);
         }
         plugin_log('qq-login.save', array('result' => 'success'));
         echo '<div class="flash ok">已保存</div>';
     }
     $appid = qq_login_appid();
     $hasKey = qq_login_appkey() !== '';
+    $domain = qq_login_domain();
     echo '<form method="post">';
     echo Csrf::field();
+    echo '<div class="form-row"><label>网站域名（含协议，用于拼接 QQ 回调绝对地址）</label>'
+        . '<input type="text" name="qq_domain" maxlength="128" value="' . e($domain) . '" '
+        . 'placeholder="https://你的域名"></div>';
     echo '<div class="form-row"><label>APP ID</label>'
         . '<input type="text" name="qq_appid" maxlength="64" value="' . e($appid) . '"></div>';
     echo '<div class="form-row"><label>APP Key（留空保持不变）</label>'
         . '<input type="password" name="qq_appkey" maxlength="128" autocomplete="new-password" '
         . 'placeholder="' . ($hasKey ? '已配置，如需更换请输入新值' : '未配置') . '"></div>';
     echo '<div class="form-row"><label>回调地址（请原样登记到 QQ 开放平台）</label>'
-        . '<input type="text" value="' . e(qq_login_callback_url()) . '" readonly></div>';
+        . '<input type="text" value="' . e($domain !== '' ? qq_login_callback_url() : '（请先填写网站域名）') . '" readonly></div>';
     echo '<button class="btn" type="submit">保存</button>';
     echo '</form>';
-    echo '<p class="tip">在 QQ 开放平台创建「网站应用」并通过审核后，将 APP ID / APP Key 填入上方；'
+    echo '<p class="tip">在 QQ 开放平台创建「网站应用」并通过审核后，将网站域名、APP ID / APP Key 填入上方；'
         . '回调地址必须与开放平台登记完全一致（含协议与域名）。</p>';
 }
