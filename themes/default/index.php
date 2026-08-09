@@ -29,7 +29,12 @@ Theme::part('header');
     <article class="post-card">
         <h2 class="post-card-title"><?php if (!empty($postItem['is_top'])): ?><span class="badge">置顶</span> <?php endif; ?><a href="<?php echo e($postUrl); ?>"><?php echo e($postItem['title']); ?></a></h2>
         <div class="post-card-meta">
+            <?php // 作者名跳转作者页；author_id=0（“未知作者”回退数据）无页可跳仍用纯文本 ?>
+            <?php if ((int) $postItem['author_id'] > 0): ?>
             <a href="<?php echo e(Router::url('author', array('id' => (int) $postItem['author_id']))); ?>"><?php echo e($postItem['author']['nickname']); ?></a>
+            <?php else: ?>
+            <span><?php echo e($postItem['author']['nickname']); ?></span>
+            <?php endif; ?>
             <span class="meta-divider">·</span>
             <span><?php echo e(date_fmt($postItem['created_at'])); ?></span>
             <?php if (!empty($postItem['category'])): ?>

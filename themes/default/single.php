@@ -32,7 +32,12 @@ $singlePost = the_post();
         <header class="article-header">
             <h1 class="article-title"><?php echo e($singlePost['title']); ?></h1>
             <div class="article-meta">
+                <?php // 作者名跳转作者页；id=0 为“未知作者”回退数据，无页可跳仍用纯文本 ?>
+                <?php if ((int) $singlePost['author']['id'] > 0): ?>
+                <a href="<?php echo e(Router::url('author', array('id' => (int) $singlePost['author']['id']))); ?>"><?php echo e($singlePost['author']['nickname']); ?></a>
+                <?php else: ?>
                 <span><?php echo e($singlePost['author']['nickname']); ?></span>
+                <?php endif; ?>
                 <span class="meta-divider">·</span>
                 <span><?php echo e(date_fmt($singlePost['created_at'])); ?></span>
                 <?php if (!empty($singlePost['category'])): ?>
