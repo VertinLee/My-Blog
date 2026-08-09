@@ -213,18 +213,31 @@ function nav_items()
     return $items;
 }
 
-/** 独立页面导航列表（如“关于我”） */
+/**
+ * 独立页面导航列表（如“关于我”）
+ * 仅返回后台勾选了“显示在侧边栏导航”的已发布页面；新建页面默认不自动加入
+ */
 function nav_pages()
 {
     static $pages = null;
     if ($pages !== null) {
         return $pages;
     }
+    $navIds = array();
+    foreach (Option::getJson('nav_page_ids', array()) as $navId) {
+        $navIds[] = (int) $navId;
+    }
+    $navIds = array_values(array_unique($navIds));
+    if (empty($navIds)) {
+        $pages = array();
+        return $pages;
+    }
     $pages = DB::query('posts')
         ->where('is_page', '=', 1)
         ->where('status', '=', 'published')
+        ->whereIn('id', $navIds)
         ->orderBy('created_at', 'ASC')
-        ->select(array('title', 'slug'));
+        ->select(array('id', 'title', 'slug'));
     return $pages;
 }
 

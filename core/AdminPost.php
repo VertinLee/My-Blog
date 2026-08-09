@@ -6,15 +6,21 @@ defined('APP_BOOT') or exit;
 
 class AdminPost
 {
-    /** 文章列表（含状态筛选与分页） */
+    /** 文章列表（含状态/类型筛选与分页；独立页面与文章同表，需可在后台管理） */
     public static function listAction()
     {
         Auth::require_cap('edit_posts');
         $status = input_enum('status', array('all', 'published', 'pending', 'draft', 'trash'), 'all', 'get');
+        $type = input_enum('type', array('all', 'post', 'page'), 'all', 'get');
         $page = max(1, input_int('page', 1, 'get'));
         $perPage = 15;
 
-        $query = DB::query('posts')->where('is_page', '=', 0);
+        $query = DB::query('posts');
+        if ($type === 'post') {
+            $query->where('is_page', '=', 0);
+        } elseif ($type === 'page') {
+            $query->where('is_page', '=', 1);
+        }
         if ($status !== 'all') {
             $query->where('status', '=', $status);
         }
@@ -23,7 +29,12 @@ class AdminPost
         // 越界页码钳制到末页，避免空表格
         $page = min($page, $totalPages);
 
-        $q = DB::query('posts')->where('is_page', '=', 0);
+        $q = DB::query('posts');
+        if ($type === 'post') {
+            $q->where('is_page', '=', 0);
+        } elseif ($type === 'page') {
+            $q->where('is_page', '=', 1);
+        }
         if ($status !== 'all') {
             $q->where('status', '=', $status);
         }
@@ -42,7 +53,7 @@ class AdminPost
         }
 
         Admin::render('文章管理', 'post_list', array(
-            'posts' => $posts, 'status' => $status, 'page' => $page,
+            'posts' => $posts, 'status' => $status, 'type' => $type, 'page' => $page,
             'totalPages' => $totalPages, 'users' => $users, 'cats' => $cats,
         ));
     }
@@ -52,9 +63,12 @@ class AdminPost
     {
         Auth::require_cap('moderate_posts');
         $id = input_int('id', 0, 'post');
-        // 返回列表页时保持当前状态筛选
+        // 返回列表页时保持当前状态/类型筛选
         $status = input_enum('status', array('all', 'published', 'pending', 'draft', 'trash'), 'all', 'post');
-        $back = site_base_admin('post/list' . ($status !== 'all' ? '&status=' . $status : ''));
+        $type = input_enum('type', array('all', 'post', 'page'), 'all', 'post');
+        $back = site_base_admin('post/list'
+            . ($status !== 'all' ? '&status=' . $status : '')
+            . ($type !== 'all' ? '&type=' . $type : ''));
 
         $post = DB::query('posts')->where('id', '=', $id)->where('is_page', '=', 0)->first();
         if (!$post || $post['status'] !== 'published') {
@@ -86,9 +100,12 @@ class AdminPost
             }
         }
         $categories = DB::query('categories')->orderBy('sort', 'ASC')->select();
+        // 当前页面是否已勾选“显示在侧边栏导航”（存 options 的 nav_page_ids）
+        $navIds = array_map('intval', Option::getJson('nav_page_ids', array()));
         Admin::render($id > 0 ? '编辑文章' : '新增文章', 'post_edit', array(
             'post' => $post, 'categories' => $categories,
             'postAudit' => Option::get('post_audit', '0') === '1',
+            'inNav' => $post && in_array((int) $post['id'], $navIds, true),
         ));
     }
 
@@ -171,6 +188,19 @@ class AdminPost
             $id = DB::insert('posts', $data);
             blog_log('post', 'post.create', 'success', array('post_id' => $id, 'title' => $title, 'status' => $status));
         }
+
+        // 侧边栏导航展示为可选项：仅独立页面可勾选，新建页面默认不加入
+        $showInNav = $isPage === 1 && input_int('show_in_nav', 0, 'post') === 1;
+        $navIds = array();
+        foreach (Option::getJson('nav_page_ids', array()) as $navId) {
+            $navIds[] = (int) $navId;
+        }
+        $navIds = array_values(array_diff($navIds, array((int) $id)));
+        if ($showInNav) {
+            $navIds[] = (int) $id;
+        }
+        Option::set('nav_page_ids', array_values(array_unique($navIds)));
+
         flash_set('success', '保存成功');
         redirect(site_base_admin('post/list'));
     }

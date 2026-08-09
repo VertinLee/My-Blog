@@ -4,6 +4,18 @@
  */
 defined('APP_BOOT') or exit;
 $tabs = array('all' => '全部', 'published' => '已发布', 'pending' => '待审核', 'draft' => '草稿', 'trash' => '回收站');
+$typeTabs = array('all' => '全部内容', 'post' => '文章', 'page' => '页面');
+// 列表链接统一携带状态+类型两个筛选参数
+$listUrl = function ($tabStatus, $tabType) {
+    $url = 'post/list';
+    if ($tabStatus !== 'all') {
+        $url .= '&status=' . $tabStatus;
+    }
+    if ($tabType !== 'all') {
+        $url .= '&type=' . $tabType;
+    }
+    return site_base_admin($url);
+};
 $statusTags = array(
     'published' => '<span class="tag green">已发布</span>',
     'pending'   => '<span class="tag yellow">待审核</span>',
@@ -15,7 +27,13 @@ $statusTags = array(
     <div class="form-inline" style="margin-bottom:14px">
         <?php foreach ($tabs as $tabKey => $tabName): ?>
         <a class="btn small <?php echo $status === $tabKey ? '' : 'gray'; ?>"
-           href="<?php echo e(site_base_admin('post/list&status=' . $tabKey)); ?>"><?php echo e($tabName); ?></a>
+           href="<?php echo e($listUrl($tabKey, $type)); ?>"><?php echo e($tabName); ?></a>
+        <?php endforeach; ?>
+        <?php // 类型筛选：独立页面与文章同表，创建后需可见可管理 ?>
+        <span style="width:12px"></span>
+        <?php foreach ($typeTabs as $typeKey => $typeName): ?>
+        <a class="btn small <?php echo $type === $typeKey ? '' : 'gray'; ?>"
+           href="<?php echo e($listUrl($status, $typeKey)); ?>"><?php echo e($typeName); ?></a>
         <?php endforeach; ?>
         <?php if (Auth::check_cap('edit_posts')): ?>
         <a class="btn small green" style="margin-left:auto" href="<?php echo e(site_base_admin('post/edit')); ?>">＋ 新增文章</a>
@@ -48,11 +66,13 @@ $statusTags = array(
                 <?php if ($postItem['status'] !== 'trash'): ?>
                 <a class="btn small" href="<?php echo e(site_base_admin('post/edit&id=' . (int) $postItem['id'])); ?>">编辑</a>
                 <?php endif; ?>
-                <?php if ($postItem['status'] === 'published' && Auth::check_cap('moderate_posts')): ?>
+                <?php // 置顶仅对文章有意义（独立页面不进前台列表流），页面行不展示该操作 ?>
+                <?php if ($postItem['status'] === 'published' && (int) $postItem['is_page'] === 0 && Auth::check_cap('moderate_posts')): ?>
                 <form method="post" action="<?php echo e(site_base_admin('post/top')); ?>" style="display:inline">
                     <?php echo Csrf::field(); ?>
                     <input type="hidden" name="id" value="<?php echo (int) $postItem['id']; ?>">
                     <input type="hidden" name="status" value="<?php echo e($status); ?>">
+                    <input type="hidden" name="type" value="<?php echo e($type); ?>">
                     <button class="btn small <?php echo empty($postItem['is_top']) ? 'gray' : ''; ?>" type="submit"><?php echo empty($postItem['is_top']) ? '置顶' : '取消置顶'; ?></button>
                 </form>
                 <?php endif; ?>
@@ -83,5 +103,5 @@ $statusTags = array(
         <?php endforeach; ?>
     </table>
     </div>
-    <?php echo admin_pager($page, $totalPages, 'post/list&status=' . $status . '&'); ?>
+    <?php echo admin_pager($page, $totalPages, 'post/list&status=' . $status . '&type=' . $type . '&'); ?>
 </div>

@@ -199,7 +199,12 @@ class Router
                 $suffix = $page > 1 ? '/page/' . $page : '';
                 return '/author/' . (int) $params['id'] . $suffix;
             case 'page':
-                return '/page/' . $params['slug'] . '.html';
+                // 独立页面 slug 可能为 NULL（未填别名），与文章同策略回退数字 id；
+                // /page/{id}.html 带 .html 后缀，与首页分页 /page/{n} 不冲突
+                $slug = isset($params['slug']) ? (string) $params['slug'] : '';
+                $key = $slug !== ''
+                    ? $slug : (isset($params['id']) ? (int) $params['id'] : 0);
+                return '/page/' . $key . '.html';
             case 'search':
                 return '/search';
             case 'login':

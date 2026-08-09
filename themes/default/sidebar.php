@@ -53,7 +53,8 @@ $authorInfo = site_author();
         <ul class="sidebar-menu">
             <li><a href="<?php echo e(Router::url('home')); ?>">首页</a></li>
             <?php foreach (nav_pages() as $navPage): ?>
-            <li><a href="<?php echo e(Router::url('page', array('slug' => $navPage['slug']))); ?>"><?php echo e($navPage['title']); ?></a></li>
+            <?php // 无别名的页面由 Router::url 回退数字 id 访问 ?>
+            <li><a href="<?php echo e(Router::url('page', array('slug' => $navPage['slug'], 'id' => (int) $navPage['id']))); ?>"><?php echo e($navPage['title']); ?></a></li>
             <?php endforeach; ?>
             <?php // 自定义导航项：后台「导航管理」增删，URL 保存时已过白名单校验 ?>
             <?php foreach (nav_items() as $navItem): ?>
@@ -75,6 +76,8 @@ $authorInfo = site_author();
             <?php endforeach; ?>
         </ul>
     </div>
+
+    <?php do_action('sidebar_widgets'); /* 插件注入点：侧边栏追加分组/小工具（输出需自带 .sidebar-section 结构并自行转义） */ ?>
 
     </div><!-- /.sidebar-body -->
 

@@ -364,14 +364,17 @@ class Front
         ));
     }
 
-    /** 独立页面 */
-    private static function singlePage($slug)
+    /** 独立页面（key 为 slug；未填别名的页面回退数字 id 访问，与文章路由同策略） */
+    private static function singlePage($key)
     {
-        $post = DB::query('posts')
-            ->where('slug', '=', $slug)
+        $query = DB::query('posts')
             ->where('is_page', '=', 1)
-            ->where('status', '=', 'published')
-            ->first();
+            ->where('status', '=', 'published');
+        if (ctype_digit($key)) {
+            $post = $query->where('id', '=', (int) $key)->first();
+        } else {
+            $post = $query->where('slug', '=', $key)->first();
+        }
         if (!$post) {
             self::notFound();
             return;

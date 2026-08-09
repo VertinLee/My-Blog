@@ -69,6 +69,13 @@ if ($currentStatus === 'pending' && !isset($statusOptions['pending'])) {
                 作为独立页面（不出现在文章列表）
             </label>
         </div>
+        <div class="form-row" style="margin:0">
+            <label>&nbsp;</label>
+            <label style="display:flex;gap:6px;align-items:center">
+                <input type="checkbox" name="show_in_nav" value="1" <?php echo !empty($inNav) ? 'checked' : ''; ?>>
+                显示在侧边栏导航（仅独立页面生效）
+            </label>
+        </div>
     </div>
 
     <?php if ($postAudit && !Auth::check_cap('moderate_posts')): ?>
