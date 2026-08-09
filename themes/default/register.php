@@ -72,6 +72,7 @@ Theme::part('header');
             </p>
             <p class="form-actions"><button class="submit" type="submit">注册</button></p>
         </form>
+        <?php do_action('auth_form_footer', 'register'); /* 插件注入点（注册按钮下方），与登录页同钩子不同页面参数 */ ?>
         <div class="auth-links">已有账号？<a href="<?php echo e(Router::url('login')); ?>">直接登录</a></div>
     </div>
     <script>

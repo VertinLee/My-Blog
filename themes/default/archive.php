@@ -14,6 +14,7 @@ Theme::part('header');
         <?php if (!empty($subject['signature'])): ?>
         <p class="author-header-signature"><?php echo e($subject['signature']); ?></p>
         <?php endif; ?>
+        <?php do_action('author_header_after', $subject); /* 插件注入点：作者头部区块内末尾（如认证标识/社交链接） */ ?>
     </div>
     <?php else: ?>
     <div class="page-header">

@@ -326,8 +326,11 @@ id / name / slug UNIQUE / description / sort。
 | `plugin_activate` / `plugin_deactivate` / `plugin_uninstall` | action | 插件生命周期 |
 
 另有主题/视图触发的注入点（默认主题已实现，见 `themes/README.md` §5.1 与
-`plugins/README.md` §3）：`auth_form_footer`（登录表单下方）、
-`post_card_before/after`（列表卡片前后）、`profile_cards`（后台个人资料页）。
+`plugins/README.md` §3）：`auth_form_footer`（登录/注册/找回表单下方，按页面参数区分）、
+`post_card_before/after`（列表卡片前后）、`single_content_after`（文章正文后）、
+`comments_before/after`（评论区前后）、`page_content_after`（独立页面正文后）、
+`author_header_after`（作者归档页头部区块内末尾）、`sidebar_widgets`（前台侧边栏）、
+`profile_cards`（后台个人资料页）。
 
 ### 7.4 插件 API
 `plugin_option($slug,$key,$default)`、`plugin_option_update()`、`plugin_log($action,$detail)`（接统一日志）、`plugin_url($slug,$path)`、设置页渲染辅助函数。

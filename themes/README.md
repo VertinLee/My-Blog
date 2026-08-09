@@ -103,7 +103,7 @@ Description: 主题描述（后台列表展示，截断 40 字）
 | `page_title()` | 当前页标题（含站点名后缀） |
 | `site_author()` | 首位管理员信息（头像卡片等） |
 | `avatar_url($avatar)` | 头像 URL（空头像回退默认图） |
-| `nav_pages()` | 独立页面导航列表 |
+| `nav_pages()` | 独立页面导航列表（仅后台勾选“显示在侧边栏导航”的已发布页面，返回 `id`/`title`/`slug`；无别名页面经 `Router::url('page', array('slug'=>…, 'id'=>…))` 回退数字 id 访问） |
 | `nav_items()` | 自定义导航项（后台「导航管理」增删，返回 `title`/`url` 数组） |
 | `nav_categories()` | 分类导航（含 `count` 文章数） |
 | `theme_setting($key, $default)` | 当前主题配置项（后台「模板管理 → 设置」维护） |
@@ -179,8 +179,13 @@ add_filter('post_content', 'my_theme_content');
 
 | 钩子 | 位置 | 说明 |
 |---|---|---|
-| `auth_form_footer` | `login.php` 登录表单下方（卡片内） | `do_action('auth_form_footer', 'login')`，第三方登录入口（如 QQ 图标） |
+| `auth_form_footer` | `login.php` / `register.php` / `forgot.php` 认证表单下方（卡片内） | `do_action('auth_form_footer', 'login'/'register'/'forgot')`，第三方登录入口（如 QQ 图标）；回调应按页面参数区分 |
 | `post_card_before` / `post_card_after` | `index.php` / `archive.php` / `search.php` 每个文章卡片前后 | `do_action('post_card_before', $postItem, $context)`，供插件加徽标/推荐位等 |
+| `single_content_after` | `single.php` 正文结束后、评论区前 | `do_action('single_content_after', $post)`，打赏/转载/相关推荐等 |
+| `comments_before` / `comments_after` | `single.php` 评论区 `<section>` 之前/之后 | `do_action('comments_before', $post)`，评论区整体前后注入 |
+| `page_content_after` | `page.php` 独立页面正文结束后 | `do_action('page_content_after', $post)` |
+| `author_header_after` | `archive.php` 作者头部区块内末尾（头像/昵称/签名之后） | `do_action('author_header_after', $subject)`，认证标识/社交链接等；`$subject` 为用户行 |
+| `sidebar_widgets` | `sidebar.php` 分类分组之后（sidebar-body 内） | `do_action('sidebar_widgets')`，插件追加侧边栏分组/小工具，输出需自带 `.sidebar-section` 结构并自行转义 |
 
 缺失这些输出点不会报错，但会导致对应插件功能在新主题上无法展示。
 

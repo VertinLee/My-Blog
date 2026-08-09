@@ -62,8 +62,13 @@ defined('APP_BOOT') or exit;
 | `password_blacklist` | filter | `$list` | 扩展弱口令黑名单 |
 | `route_parse` | filter | `$route, $path` | 未知路径落入 404 前认领自定义路由 |
 | `front_route_{路由名}` | action | `$params` | 接管经 `route_parse` 认领的路由 |
-| `auth_form_footer` | action | `$page` | 登录表单下方注入点（主题触发，默认 `$page='login'`） |
+| `auth_form_footer` | action | `$page` | 认证表单下方注入点（主题触发；`$page` 为 `login`/`register`/`forgot`，回调应按参数区分页面） |
 | `post_card_before` / `post_card_after` | action | `$post, $context` | 列表页文章卡片前/后注入点（主题触发，适合加徽标/推荐位等） |
+| `single_content_after` | action | `$post` | 文章详情正文结束后、评论区前（主题触发，如打赏/转载/相关推荐） |
+| `comments_before` / `comments_after` | action | `$post` | 文章详情页评论区整体之前/之后（主题触发） |
+| `page_content_after` | action | `$post` | 独立页面正文结束后（主题触发） |
+| `author_header_after` | action | `$subject` | 作者归档页头部区块内末尾（主题触发，如认证标识/社交链接；`$subject` 为用户行） |
+| `sidebar_widgets` | action | 无 | 前台侧边栏追加分组/小工具（主题触发，输出需自带 `.sidebar-section` 结构并自行转义） |
 | `profile_cards` | action | `$user` | 后台个人资料页追加卡片（内核视图触发） |
 | `plugin_activate` / `plugin_deactivate` / `plugin_uninstall` | action | `$slug` | 插件生命周期 |
 

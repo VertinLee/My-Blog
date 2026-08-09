@@ -32,4 +32,5 @@ $pagePost = the_post();
             <?php echo render_content($pagePost['content']); ?>
         </div>
     </article>
+    <?php do_action('page_content_after', $pagePost); /* 插件注入点：独立页面正文结束后 */ ?>
 <?php Theme::part('footer'); ?>

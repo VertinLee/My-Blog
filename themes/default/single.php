@@ -53,7 +53,9 @@ $singlePost = the_post();
             <?php echo render_content($singlePost['content']); ?>
         </div>
     </article>
+    <?php do_action('single_content_after', $singlePost); /* 插件注入点：正文结束后、评论区前（如打赏/转载/相关推荐） */ ?>
 
+    <?php do_action('comments_before', $singlePost); /* 插件注入点：评论区整体之前 */ ?>
     <section class="comments-area">
         <h2 class="comments-title">评论 (<?php echo count($comments); ?>)</h2>
         <?php if (empty($comments)): ?>
@@ -153,4 +155,5 @@ $singlePost = the_post();
         <p class="form-hint"><a href="<?php echo e(Router::url('login')); ?>">登录</a>后才可以发表评论。</p>
         <?php endif; ?>
     </section>
+    <?php do_action('comments_after', $singlePost); /* 插件注入点：评论区整体之后 */ ?>
 <?php Theme::part('footer'); ?>

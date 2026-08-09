@@ -47,6 +47,7 @@ Theme::part('header');
         <?php else: ?>
         <p class="form-hint">站点未启用邮箱或短信验证插件，无法在线找回密码，请联系管理员。</p>
         <?php endif; ?>
+        <?php do_action('auth_form_footer', 'forgot'); /* 插件注入点（找回表单下方），与登录/注册页同钩子不同页面参数 */ ?>
         <div class="auth-links"><a href="<?php echo e(Router::url('login')); ?>">返回登录</a></div>
     </div>
     <script>
