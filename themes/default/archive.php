@@ -6,12 +6,23 @@ defined('APP_BOOT') or exit;
 Theme::part('header');
 ?>
 <div id="content">
+    <?php if ($route === 'author' && isset($subject['id'])): ?>
+    <?php // 作者页头部：头像 / 昵称 / 个性签名三行居中，不显示“作者：”前缀 ?>
+    <div class="author-header">
+        <img class="author-header-avatar" src="<?php echo e(avatar_url($subject['avatar'])); ?>" alt="<?php echo e($subject['nickname']); ?>">
+        <div class="author-header-name"><?php echo e($subject['nickname']); ?></div>
+        <?php if (!empty($subject['signature'])): ?>
+        <p class="author-header-signature"><?php echo e($subject['signature']); ?></p>
+        <?php endif; ?>
+    </div>
+    <?php else: ?>
     <div class="page-header">
         <h1 class="page-title"><?php echo e($title); ?></h1>
         <?php if (isset($subject['description']) && $subject['description'] !== ''): ?>
         <p class="page-description"><?php echo e($subject['description']); ?></p>
         <?php endif; ?>
     </div>
+    <?php endif; ?>
 
     <?php if (empty($posts)): ?>
     <p class="empty-tip">该归档下暂无文章。</p>

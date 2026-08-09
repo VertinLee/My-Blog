@@ -133,6 +133,9 @@ class Front
                 $author['username'] = '用户已注销';
             }
             $author['avatar'] = '';
+            if (isset($author['signature'])) {
+                $author['signature'] = '';
+            }
         }
         return $author;
     }
@@ -184,15 +187,16 @@ class Front
     /** 作者归档 */
     private static function author(array $params)
     {
-        $user = DB::query('users')->where('id', '=', $params['id'])->first(array('id', 'username', 'nickname', 'avatar', 'is_deleted'));
+        $user = DB::query('users')->where('id', '=', $params['id'])->first(array('id', 'username', 'nickname', 'avatar', 'signature', 'is_deleted'));
         if (!$user) {
             self::notFound();
             return;
         }
         $user = self::maskDeletedAuthor($user);
+        // 标题不带“作者：”前缀：主题作者页头部自行展示头像/昵称/签名三行
         self::renderArchive('author', $params['page'], array(
             array('author_id', '=', (int) $user['id']),
-        ), '作者：' . $user['nickname'], array('id' => (int) $user['id']), $user);
+        ), $user['nickname'], array('id' => (int) $user['id']), $user);
     }
 
     /** 归档列表渲染（分类/作者共用） */

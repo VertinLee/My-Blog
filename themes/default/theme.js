@@ -1,5 +1,6 @@
 /**
  * 默认主题交互：☾ 明暗切换（localStorage 记忆，默认跟随系统）+ ☰ 移动端侧栏
+ * + 正文工具栏（返回 / 字号增减 / 打印）
  */
 (function () {
     'use strict';
@@ -123,10 +124,83 @@
         });
     }
 
+    /**
+     * 正文工具栏：返回（无站内来路时回首页）/ 字号四档切换（localStorage 记忆）/ 打印
+     */
+    function initArticleToolbar() {
+        var FONT_KEY = 'cb-article-font';
+        var fontSizes = ['font-size-sm', 'font-size-md', 'font-size-lg', 'font-size-xl'];
+        var fontIndex = 1;
+        var content = document.getElementById('article-content');
+
+        function applyFontSize(index) {
+            for (var i = 0; i < fontSizes.length; i++) {
+                content.classList.remove(fontSizes[i]);
+            }
+            content.classList.add(fontSizes[index]);
+        }
+
+        if (content) {
+            try {
+                var saved = localStorage.getItem(FONT_KEY);
+                if (saved !== null) {
+                    fontIndex = Math.max(0, Math.min(3, parseInt(saved, 10)));
+                }
+            } catch (err) { /* 隐私模式下静默失败 */ }
+            applyFontSize(fontIndex);
+
+            var btnDecrease = document.getElementById('btn-font-decrease');
+            var btnIncrease = document.getElementById('btn-font-increase');
+            if (btnDecrease) {
+                btnDecrease.addEventListener('click', function () {
+                    if (fontIndex > 0) {
+                        fontIndex--;
+                        applyFontSize(fontIndex);
+                        saveFont(fontIndex);
+                    }
+                });
+            }
+            if (btnIncrease) {
+                btnIncrease.addEventListener('click', function () {
+                    if (fontIndex < 3) {
+                        fontIndex++;
+                        applyFontSize(fontIndex);
+                        saveFont(fontIndex);
+                    }
+                });
+            }
+        }
+
+        function saveFont(index) {
+            try { localStorage.setItem(FONT_KEY, String(index)); } catch (err) { /* 静默失败 */ }
+        }
+
+        var btnBack = document.getElementById('btn-back');
+        if (btnBack) {
+            btnBack.addEventListener('click', function () {
+                // 有站内来路才后退，否则回首页（data-home 由模板按路由模式生成，兼容子目录部署）
+                var home = btnBack.getAttribute('data-home') || '/';
+                if (window.history.length > 1 && document.referrer && document.referrer.indexOf(window.location.origin) !== -1) {
+                    window.history.back();
+                } else {
+                    window.location.href = home;
+                }
+            });
+        }
+
+        var btnPrint = document.getElementById('btn-print');
+        if (btnPrint) {
+            btnPrint.addEventListener('click', function () {
+                window.print();
+            });
+        }
+    }
+
     function init() {
         initDarkMode();
         initSidebar();
         initConfirmForms();
+        initArticleToolbar();
     }
 
     if (document.readyState === 'loading') {

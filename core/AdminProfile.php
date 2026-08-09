@@ -20,6 +20,8 @@ class AdminProfile
         Auth::require_cap('edit_profile');
         $user = Auth::user();
         $nickname = input_text('nickname', '', 64, 'post');
+        // 个性签名非敏感信息，无需重验密码；展示于作者页顶部
+        $signature = input_text('signature', '', 100, 'post');
         $email = input_email('email', '', 'post');
         $phone = input_phone('phone', '', 'post');
         $avatar = input_text('avatar', '', 255, 'post');
@@ -78,10 +80,11 @@ class AdminProfile
         }
 
         DB::update('users', array(
-            'nickname' => $nickname !== '' ? $nickname : $user['nickname'],
-            'email'    => $email !== '' ? $email : null,
-            'phone'    => $phone,
-            'avatar'   => $avatar,
+            'nickname'  => $nickname !== '' ? $nickname : $user['nickname'],
+            'signature' => $signature,
+            'email'     => $email !== '' ? $email : null,
+            'phone'     => $phone,
+            'avatar'    => $avatar,
         ), array('id' => (int) $user['id']));
         // 核验通过的验证码标记已用，防止重放
         if ($contactChanged) {

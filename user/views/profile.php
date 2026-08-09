@@ -17,6 +17,10 @@ defined('APP_BOOT') or exit;
             <input type="text" name="nickname" value="<?php echo e($user['nickname']); ?>">
         </div>
         <div class="form-row">
+            <label>个性签名（展示在作者页昵称下方，不超过 100 字，留空则不展示）</label>
+            <input type="text" name="signature" maxlength="100" value="<?php echo e($user['signature']); ?>">
+        </div>
+        <div class="form-row">
             <label>邮箱</label>
             <input type="email" name="email" id="profileEmail" value="<?php echo $user['email'] !== null ? e($user['email']) : ''; ?>">
         </div>

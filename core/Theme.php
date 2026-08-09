@@ -172,7 +172,7 @@ function site_author()
         ->where('role', '=', 'admin')
         ->where('status', '=', 1)
         ->orderBy('id', 'ASC')
-        ->first(array('id', 'username', 'nickname', 'avatar'));
+        ->first(array('id', 'username', 'nickname', 'avatar', 'signature'));
     if ($author === null) {
         $author = false;
         return null;

@@ -6,6 +6,8 @@ defined('APP_BOOT') or exit;
 $authorInfo = site_author();
 ?>
 <aside id="sidebar" role="complementary">
+    <?php // sidebar-body 包裹主内容：flex 列布局下与底部明暗切换钮分离，切换钮 margin-top:auto 钉在左下角 ?>
+    <div class="sidebar-body">
     <div class="sidebar-site-title">
         <a href="<?php echo e(Router::url('home')); ?>"><?php echo e(site_name()); ?></a>
     </div>
@@ -16,7 +18,10 @@ $authorInfo = site_author();
     <?php if ($authorInfo): ?>
     <img class="sidebar-avatar" src="<?php echo e(avatar_url($authorInfo['avatar'])); ?>" alt="<?php echo e($authorInfo['nickname']); ?>">
     <div class="sidebar-author-name"><?php echo e($authorInfo['nickname']); ?></div>
-    <div class="sidebar-author-bio"><?php echo e(Option::get('author_bio', '保持热爱，奔赴山海。')); ?></div>
+    <?php // 站长简介改为展示该用户自助设置的个性签名（留空则不展示），与作者页保持一致 ?>
+    <?php if (!empty($authorInfo['signature'])): ?>
+    <div class="sidebar-author-bio"><?php echo e($authorInfo['signature']); ?></div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <?php // 头像下方账号入口：未登录显示登录/注册，已登录显示仪表盘 ?>
@@ -71,8 +76,10 @@ $authorInfo = site_author();
         </ul>
     </div>
 
-    <?php // 明暗切换收入侧边栏内，不再悬浮于页面角落 ?>
-    <div class="sidebar-section">
+    </div><!-- /.sidebar-body -->
+
+    <?php // 明暗切换钉在侧边栏左下角（不再随内容流居中） ?>
+    <div class="sidebar-darkmode">
         <button type="button" class="darkmode-toggle" id="darkmode-toggle" aria-label="切换暗色模式" title="切换暗色模式">
             <span id="darkmode-icon">☾</span>
         </button>

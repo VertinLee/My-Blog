@@ -93,6 +93,7 @@
 | email | VARCHAR(128) UNIQUE | 可用于登录/找回密码 |
 | phone | VARCHAR(20) | 手机号，可用于短信验证 |
 | avatar | VARCHAR(255) | 头像路径，空则用默认头像 |
+| signature | VARCHAR(255) | 个性签名，用户在个人资料页自助设置，展示于作者页（注销用户匿名化时一并隐藏） |
 | role | ENUM('admin','editor','user') | **权限唯一判定字段** |
 | status | TINYINT | 1 正常 0 禁用 |
 | is_banned | TINYINT DEFAULT 0 | 1 封禁：已发布内容保留，但禁止登录（既有会话即时失效） |

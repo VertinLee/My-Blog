@@ -54,7 +54,7 @@ Description: 主题描述（后台列表展示，截断 40 字）
 
 | 模板 | 注入变量 |
 |---|---|
-| index / archive / search | `page_type`、`title`、`posts`（数组）、`page`、`totalPages`、`route`、`routeParams`；archive 另有 `subject`（分类对象）；search 另有 `kw` |
+| index / archive / search | `page_type`、`title`、`posts`（数组）、`page`、`totalPages`、`route`、`routeParams`；archive 另有 `subject`（分类路由为分类对象；作者路由为用户行：`id`/`username`/`nickname`/`avatar`/`signature`，作者页建议展示头像/昵称/签名三行居中，不带“作者：”前缀）；search 另有 `kw` |
 | single | `page_type`、`title`、`post`（含 `author` 快照）、`comments` |
 | page | `page_type`、`title`、`post` |
 | login / register / forgot | `page_type`、`title`、`error`，及各自表单回显变量 |

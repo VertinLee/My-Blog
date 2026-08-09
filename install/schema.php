@@ -22,6 +22,7 @@ function install_schema($prefix)
         `email` VARCHAR(128) NULL DEFAULT NULL,
         `phone` VARCHAR(20) NOT NULL DEFAULT '',
         `avatar` VARCHAR(255) NOT NULL DEFAULT '',
+        `signature` VARCHAR(255) NOT NULL DEFAULT '',
         `role` ENUM('admin','editor','user') NOT NULL DEFAULT 'user',
         `status` TINYINT NOT NULL DEFAULT 1,
         `is_banned` TINYINT NOT NULL DEFAULT 0,
