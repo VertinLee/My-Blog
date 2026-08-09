@@ -260,7 +260,12 @@ function avatar_url($avatar)
     return assets_url('admin/default-avatar.svg');
 }
 
-/** 自定义导航项（后台「导航管理」维护，存 options.nav_items，按保存顺序返回） */
+/**
+ * 自定义导航项（后台「导航管理」维护，存 options.nav_items，按保存顺序返回）。
+ * 支持一层父子层级：顶层项含 children 数组（可能为空）；子项仅 title/url。
+ * 顶层项链接可为空（纯文本分组标签，仅在有子项时保留）。
+ * 旧数据（无 children 字段）自动兼容，逐项补空 children。
+ */
 function nav_items()
 {
     static $items = null;
@@ -277,9 +282,30 @@ function nav_items()
         return $items;
     }
     foreach ($decoded as $row) {
-        if (isset($row['title'], $row['url']) && $row['title'] !== '' && $row['url'] !== '') {
-            $items[] = array('title' => (string) $row['title'], 'url' => (string) $row['url']);
+        if (!isset($row['title'], $row['url']) || $row['title'] === '') {
+            continue;
         }
+        $children = array();
+        if (isset($row['children']) && is_array($row['children'])) {
+            foreach ($row['children'] as $child) {
+                if (isset($child['title'], $child['url'])
+                    && $child['title'] !== '' && $child['url'] !== '') {
+                    $children[] = array(
+                        'title' => (string) $child['title'],
+                        'url'   => (string) $child['url'],
+                    );
+                }
+            }
+        }
+        // 空链接顶层项仅作分组标签：无子项时无展示意义，丢弃
+        if ((string) $row['url'] === '' && empty($children)) {
+            continue;
+        }
+        $items[] = array(
+            'title'    => (string) $row['title'],
+            'url'      => (string) $row['url'],
+            'children' => $children,
+        );
     }
     return $items;
 }

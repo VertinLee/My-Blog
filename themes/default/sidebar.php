@@ -56,9 +56,20 @@ $authorInfo = site_author();
             <?php // 无别名的页面由 Router::url 回退数字 id 访问 ?>
             <li><a href="<?php echo e(Router::url('page', array('slug' => $navPage['slug'], 'id' => (int) $navPage['id']))); ?>"><?php echo e($navPage['title']); ?></a></li>
             <?php endforeach; ?>
-            <?php // 自定义导航项：后台「导航管理」增删，URL 保存时已过白名单校验 ?>
+            <?php // 自定义导航项：后台「导航管理」增删，URL 保存时已过白名单校验；支持一层子项 ?>
             <?php foreach (nav_items() as $navItem): ?>
+            <?php if (!empty($navItem['children'])): ?>
+            <li class="sidebar-menu-parent">
+                <span><?php echo e($navItem['title']); ?></span>
+                <ul class="sidebar-menu-children">
+                    <?php foreach ($navItem['children'] as $child): ?>
+                    <li><a href="<?php echo e($child['url']); ?>"><?php echo e($child['title']); ?></a></li>
+                    <?php endforeach; ?>
+                </ul>
+            </li>
+            <?php else: ?>
             <li><a href="<?php echo e($navItem['url']); ?>"><?php echo e($navItem['title']); ?></a></li>
+            <?php endif; ?>
             <?php endforeach; ?>
         </ul>
     </div>

@@ -138,30 +138,62 @@ class AdminSetting
         Admin::render('导航管理', 'setting_nav', array('items' => nav_items()));
     }
 
-    /** 保存导航项：既有行可原地编辑/勾选删除，末行追加一条新项 */
+    /**
+     * 保存导航项：前端按拖拽后的 DOM 顺序重编号提交 title_i/url_i/parent_i，
+     * row_total 告知总行数；移除的行直接不提交。无 JS 时回退旧结构行数
+     * （表单 name 由服务端按旧顺序渲染，del_i 勾选删除仍可用）。
+     * 仅支持一层父子：父级必须是更早的顶层行，非法父级自动提升为顶层。
+     * 新增行（前端模板行带 fresh 标记）必须填写链接；既有顶层项链接可留空
+     * 作纯文本分组标签（有子项才保留）；子项链接必填。
+     */
     public static function navSaveAction()
     {
         Auth::require_cap('manage_options');
-        $items = array();
-        foreach (nav_items() as $i => $row) {
+        // row_total 缺省（-1）即无 JS 提交，回退旧结构行数
+        $total = input_int('row_total', -1, 'post');
+        if ($total < 0) {
+            $total = count(self::flattenNav(nav_items()));
+        }
+        $rows = array(); // 提交行号 => ['title','url','parent']，保留行号供父级引用
+        for ($i = 0; $i < $total; $i++) {
             if (input_int('del_' . $i, 0, 'post') === 1) {
                 continue;
             }
             $item = self::sanitizeNavItem(
                 input_text('title_' . $i, '', 32, 'post'),
-                input_text('url_' . $i, '', 255, 'post')
+                input_text('url_' . $i, '', 255, 'post'),
+                true
             );
-            if ($item !== null) {
-                $items[] = $item;
+            if ($item === null) {
+                continue;
             }
+            // 新增行必须带链接：新行本次保存内不可能有子项，空链接必被丢弃，
+            // 静默丢失会误导用户，故直接拒绝保存（前端 required 已拦一道，此处兜底）
+            if (input_int('fresh_' . $i, 0, 'post') === 1 && $item['url'] === '') {
+                blog_log('setting', 'setting.nav', 'fail', array('reason' => 'fresh_empty_url'));
+                flash_set('error', '新添加的导航项必须填写链接');
+                redirect(site_base_admin('setting/nav'));
+            }
+            $rows[$i] = array(
+                'title'  => $item['title'],
+                'url'    => $item['url'],
+                'parent' => input_int('parent_' . $i, -1, 'post'),
+            );
         }
+        // 总数上限 30（含子项）；被截断行的父级引用由 rebuildNav 自动降级处理
+        if (count($rows) > 30) {
+            $rows = array_slice($rows, 0, 30, true);
+        }
+        // 无 JS 兜底新增通道（恒为顶层）；JS 下新增行已并入上方重编号提交
         $newItem = self::sanitizeNavItem(
             input_text('new_title', '', 32, 'post'),
             input_text('new_url', '', 255, 'post')
         );
-        if ($newItem !== null && count($items) < 30) {
-            $items[] = $newItem;
+        if ($newItem !== null && count($rows) < 30) {
+            $rows[] = array('title' => $newItem['title'], 'url' => $newItem['url'], 'parent' => -1);
         }
+        // 重建嵌套结构：先按序收集顶层，再挂子项
+        $items = self::rebuildNav($rows);
         Option::set('nav_items', json_encode($items, JSON_UNESCAPED_UNICODE));
         blog_log('setting', 'setting.nav', 'success', array('count' => count($items)));
         flash_set('success', '导航项已保存');
@@ -169,16 +201,93 @@ class AdminSetting
     }
 
     /**
-     * 单条导航项校验：标题/链接非空且 URL 命中白名单；非法返回 null
-     * URL 只准站内相对路径（/ 开头、无协议头）或 http(s) 绝对地址，
-     * 拒绝 javascript:/data: 等可执行协议与协议相对地址
+     * 由扁平行（旧行号 => title/url/parent）重建一层嵌套结构。
+     * 单遍按行序构建：合法子项先收集、结束后挂到父顶层下；顶层与
+     * 非法父级（失效/越界/指向子项）的行按出现顺序入列，禁止多层嵌套。
+     * 子项恒渲染为链接，空链接子项丢弃；空链接顶层项仅作分组标签，
+     * 无子项时无展示意义，同样丢弃。
+     *
+     * @param array $rows 旧行号 => array('title','url','parent')
+     * @return array 嵌套导航结构
      */
-    private static function sanitizeNavItem($title, $url)
+    public static function rebuildNav(array $rows)
+    {
+        $items = array();
+        $map = array();      // 顶层行的旧行号 => $items 下标
+        $children = array(); // 顶层旧行号 => 子项列表
+        foreach ($rows as $oldIdx => $row) {
+            $p = $row['parent'];
+            $valid = $p >= 0 && $p < $oldIdx && isset($map[$p]);
+            if ($valid) {
+                if ($row['url'] !== '') {
+                    $children[$p][] = array('title' => $row['title'], 'url' => $row['url']);
+                }
+            } else {
+                $map[$oldIdx] = count($items);
+                $items[] = array('title' => $row['title'], 'url' => $row['url'], 'children' => array());
+            }
+        }
+        foreach ($children as $p => $list) {
+            $items[$map[$p]]['children'] = $list;
+        }
+        // 空链接顶层项仅作分组标签，无子项时无展示意义，丢弃
+        $result = array();
+        foreach ($items as $item) {
+            if ($item['url'] === '' && empty($item['children'])) {
+                continue;
+            }
+            $result[] = $item;
+        }
+        return $result;
+    }
+
+    /**
+     * 将嵌套导航扁平化（供后台编辑表单与保存共用，保证行号一致）：
+     * 按序输出顶层项，每个顶层项的子项紧随其后；返回 [idx => ['title','url','parent']]，
+     * parent=-1 表示顶层，否则为该行父项的扁平行号。
+     *
+     * @param array $items nav_items() 返回的嵌套结构
+     * @return array
+     */
+    public static function flattenNav(array $items)
+    {
+        $flat = array();
+        $idx = 0;
+        foreach ($items as $row) {
+            $parentIdx = $idx;
+            $flat[$idx++] = array(
+                'title'  => isset($row['title']) ? (string) $row['title'] : '',
+                'url'    => isset($row['url']) ? (string) $row['url'] : '',
+                'parent' => -1,
+            );
+            if (!empty($row['children']) && is_array($row['children'])) {
+                foreach ($row['children'] as $child) {
+                    $flat[$idx++] = array(
+                        'title'  => isset($child['title']) ? (string) $child['title'] : '',
+                        'url'    => isset($child['url']) ? (string) $child['url'] : '',
+                        'parent' => $parentIdx,
+                    );
+                }
+            }
+        }
+        return $flat;
+    }
+
+    /**
+     * 单条导航项校验：标题非空且 URL 命中白名单；非法返回 null
+     * URL 只准站内相对路径（/ 开头、无协议头）或 http(s) 绝对地址，
+     * 拒绝 javascript:/data: 等可执行协议与协议相对地址；
+     * $allowEmptyUrl 为 true 时放行空链接（顶层分组标签场景，由重建逻辑决定去留）
+     */
+    private static function sanitizeNavItem($title, $url, $allowEmptyUrl = false)
     {
         $title = trim((string) $title);
         $url = trim((string) $url);
-        if ($title === '' || $url === '') {
+        if ($title === '') {
             return null;
+        }
+        if ($url === '') {
+            return $allowEmptyUrl ? array('title' => $title, 'url' => '') : null;
         }
         $isRelative = strpos($url, '/') === 0 && strpos($url, '//') !== 0;
         $isAbsolute = (bool) preg_match('#^https?://#i', $url);
