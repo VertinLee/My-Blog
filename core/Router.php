@@ -185,8 +185,10 @@ class Router
                 $page = isset($params['page']) ? (int) $params['page'] : 1;
                 return $page > 1 ? '/page/' . $page : '/';
             case 'post':
-                $key = isset($params['slug']) && $params['slug'] !== ''
-                    ? $params['slug'] : (isset($params['id']) ? (int) $params['id'] : 0);
+                // slug 可能为 NULL（无别名），强转字符串后统一判空；无别名回退数字 id
+                $slug = isset($params['slug']) ? (string) $params['slug'] : '';
+                $key = $slug !== ''
+                    ? $slug : (isset($params['id']) ? (int) $params['id'] : 0);
                 return '/post/' . $key . '.html';
             case 'category':
                 $page = isset($params['page']) ? (int) $params['page'] : 1;

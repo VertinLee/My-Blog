@@ -39,7 +39,7 @@ function install_schema($prefix)
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
         `author_id` INT UNSIGNED NOT NULL,
         `title` VARCHAR(255) NOT NULL,
-        `slug` VARCHAR(255) NOT NULL DEFAULT '',
+        `slug` VARCHAR(255) NULL DEFAULT NULL,
         `content` MEDIUMTEXT,
         `excerpt` TEXT,
         `category_id` INT UNSIGNED NOT NULL DEFAULT 0,

@@ -72,65 +72,6 @@ DB::init(array(
     'charset' => 'utf8mb4',
 ));
 
-// 存量站结构惰性升级：verify_codes.scene 补 profile 场景（新装已含，幂等只跑一次）；
-// 升级失败仅记录不阻断站点，待下次请求重试
-if (Option::get('schema_scene_profile', '0') !== '1') {
-    try {
-        $table = DB::table('verify_codes');
-        $col = DB::pdo()->query("SHOW COLUMNS FROM `{$table}` LIKE 'scene'")->fetch();
-        if ($col && strpos($col['Type'], 'profile') === false) {
-            DB::pdo()->exec("ALTER TABLE `{$table}` MODIFY COLUMN `scene` ENUM('register','reset','profile') NOT NULL");
-        }
-        Option::set('schema_scene_profile', '1');
-    } catch (Exception $ex) {
-        error_log('[blog] schema upgrade failed: ' . $ex->getMessage());
-    }
-}
-
-// 存量站结构惰性升级：users 表补封禁/注销标记列（新装已含，幂等只跑一次）
-if (Option::get('schema_user_flags', '0') !== '1') {
-    try {
-        $table = DB::table('users');
-        $cols = DB::pdo()->query("SHOW COLUMNS FROM `{$table}`")->fetchAll();
-        $names = array();
-        foreach ($cols as $col) {
-            $names[] = $col['Field'];
-        }
-        if (!in_array('is_banned', $names, true)) {
-            DB::pdo()->exec("ALTER TABLE `{$table}` ADD COLUMN `is_banned` TINYINT NOT NULL DEFAULT 0");
-        }
-        if (!in_array('is_deleted', $names, true)) {
-            DB::pdo()->exec("ALTER TABLE `{$table}` ADD COLUMN `is_deleted` TINYINT NOT NULL DEFAULT 0");
-        }
-        Option::set('schema_user_flags', '1');
-    } catch (Exception $ex) {
-        error_log('[blog] schema upgrade failed: ' . $ex->getMessage());
-    }
-}
-
-// 存量站结构惰性升级：补 plugin_data 表（插件通用数据存储；新装已含，幂等只跑一次）
-if (Option::get('schema_plugin_data', '0') !== '1') {
-    try {
-        DB::pdo()->exec("CREATE TABLE IF NOT EXISTS `" . DB::table('plugin_data') . "` (
-            `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            `plugin` VARCHAR(64) NOT NULL,
-            `scope` ENUM('global','user') NOT NULL DEFAULT 'global',
-            `user_id` INT UNSIGNED NOT NULL DEFAULT 0,
-            `data_key` VARCHAR(191) NOT NULL,
-            `data_value` MEDIUMTEXT,
-            `expires_at` DATETIME NULL DEFAULT NULL,
-            `created_at` DATETIME NOT NULL,
-            `updated_at` DATETIME NOT NULL,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `uk_lookup` (`plugin`,`scope`,`user_id`,`data_key`),
-            KEY `idx_expires` (`expires_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        Option::set('schema_plugin_data', '1');
-    } catch (Exception $ex) {
-        error_log('[blog] schema upgrade failed: ' . $ex->getMessage());
-    }
-}
-
 // 站点时区：默认 UTC+8（Asia/Shanghai），影响 now()/date_fmt()/日志等全部时间
 // 非法值回退默认，避免 date() 报警告
 $timezone = Option::get('timezone', 'Asia/Shanghai');

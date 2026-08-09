@@ -121,7 +121,8 @@ class AdminPost
 
         $data = array(
             'title'       => $title,
-            'slug'        => $slug,
+            // 空别名存 NULL：唯一索引只允许 NULL 重复（空串重复会撞约束）
+            'slug'        => $slug !== '' ? $slug : null,
             'content'     => $content,
             'excerpt'     => $excerpt,
             'category_id' => $categoryId,
