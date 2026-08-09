@@ -22,6 +22,8 @@ themes/
     ├── register.php    ← 注册页
     ├── forgot.php      ← 找回密码页
     ├── functions.php   ← 可选：主题自有钩子挂载与助手函数
+    ├── settings.php    ← 可选：后台主题设置清单（声明式，内核据此渲染表单与校验保存）
+    ├── js/             ← 可选：主题自有脚本子目录（主题静态资源一律随主题目录存放）
     ├── header.php      ← 可选：页头局部模板（Theme::part('header') 引入）
     ├── sidebar.php     ← 可选：侧边栏局部模板
     ├── theme.js        ← 可选：主题脚本（theme_footer() 自动输出）
@@ -34,6 +36,10 @@ themes/
   `?v={文件修改时间}` 缓存版本号，文件更新后浏览器自动加载新版，
   主题无需也不得自行拼接版本参数；`assets_url()`（非主题资源）同理。
   禁止引用任何 CDN 资源。
+- **主题自有静态资源（脚本/样式/图片）必须随主题放在主题目录内**（可建
+  `js/` 等子目录，参考 `themes/default/js/`），禁止放 `assets/`；仅内核
+  跨场景共用脚本（前台与后台视图均引用的，如 `assets/front/verify.js`、
+  `assets/front/password_check.js`）与第三方本地化资源（`assets/vendor/`）例外。
 
 ## 2. style.css 头部元数据
 
@@ -77,9 +83,9 @@ Description: 主题描述（后台列表展示，截断 40 字）
   `window.CB_VERIFY = { url: Router::url('verify_send'), csrf: Csrf::token() }`
   （参考 `themes/default/register.php`）。服务端已内置 60 秒重发间隔、
   每日上限与 CSRF 校验，主题无需重复实现。
-- 注册页另加载 `assets/front/register_check.js`：提交前逐项校验
+- 注册页另加载默认主题自带的 `themes/default/js/register_check.js`：提交前逐项校验
   （信息不全/不合法时阻止请求并在字段下方提示）+ 确认密码实时一致反馈；
-  主题可直接复用，若自写校验须保持与服务端规则一致（前端仅为体验，
+  其它主题可参考其实现随主题自带校验脚本，若自写校验须保持与服务端规则一致（前端仅为体验，
   弱口令黑名单与验证码真实性始终以服务端判定为准）。
 - 找回密码页（forgot）须加载 `assets/front/password_check.js` 并在 form 上
   声明 `data-pwd-check` 与 `data-account`（指向账号输入框的选择器）：
@@ -145,8 +151,9 @@ Description: 主题描述（后台列表展示，截断 40 字）
 `<pre><code class="language-xxx">`。
 
 主题若需展示公式/高亮，须在 `functions.php` 中经 `front_head` / `front_footer`
-钩子加载**本地化**的 KaTeX / highlight.js 资源，最后加载内核的
-`assets/front/render.js` 完成渲染（参考 `themes/default/functions.php`）。
+钩子加载**本地化**的 KaTeX / highlight.js 资源，最后加载随主题自带的
+渲染脚本（默认主题为 `themes/default/js/render.js`）完成渲染（参考
+`themes/default/functions.php`）。
 
 禁止事项：
 
@@ -183,6 +190,7 @@ add_filter('post_content', 'my_theme_content');
 | `post_card_before` / `post_card_after` | `index.php` / `archive.php` / `search.php` 每个文章卡片前后 | `do_action('post_card_before', $postItem, $context)`，供插件加徽标/推荐位等 |
 | `single_content_after` | `single.php` 正文结束后、评论区前 | `do_action('single_content_after', $post)`，打赏/转载/相关推荐等 |
 | `comments_before` / `comments_after` | `single.php` 评论区 `<section>` 之前/之后 | `do_action('comments_before', $post)`，评论区整体前后注入 |
+| `comment_area_state`（条件渲染） | `single.php` 评论区 | 主题必须先 `apply_filters('comment_area_state', array('list'=>true,'form'=>true,'actions'=>true), $post)`，再按返回值控制：`list=false` 评论区整体不渲染；`form=false` 隐藏发表框；`actions=false` 隐藏本人评论的编辑/删除按钮与行内编辑（参考 `themes/default/single.php`） |
 | `page_content_after` | `page.php` 独立页面正文结束后 | `do_action('page_content_after', $post)` |
 | `author_header_after` | `archive.php` 作者头部区块内末尾（头像/昵称/签名之后） | `do_action('author_header_after', $subject)`，认证标识/社交链接等；`$subject` 为用户行 |
 | `sidebar_widgets` | `sidebar.php` 分类分组之后（sidebar-body 内） | `do_action('sidebar_widgets')`，插件追加侧边栏分组/小工具，输出需自带 `.sidebar-section` 结构并自行转义 |
@@ -192,13 +200,31 @@ add_filter('post_content', 'my_theme_content');
 ## 6. 启用、上传、删除与主题设置
 
 - **启用**：后台「模板管理 → 启用」，写入 `options.active_theme`。
-- **主题设置**：列表页每个主题的「设置」按钮（能力点 `manage_themes`），
-  按主题目录独立存储于 `options.theme_settings_{dir}`（JSON），模板用
-  `theme_setting()` 读取。内置项：ICP 备案号与公安备案号，展示规则见
-  `themes/default/footer.php`（未填不展示；均填时以「|」分隔；公安备案前带
-  `gongan-icon.png` 图标并链接 `beian.mps.gov.cn` 查询页，ICP 链接
-  `beian.miit.gov.cn`）。主题若需自带备案图标，应将 `gongan-icon.png`
-  随主题包分发。
+- **主题设置**：设置页由主题自带的 `settings.php` 清单驱动（可选文件，
+  不提供则列表页不展示「设置」按钮）：
+
+  ```php
+  <?php
+  defined('APP_BOOT') or exit;
+  return array(
+      'my_option' => array(
+          'label'     => '字段标题',
+          'type'      => 'text',        // text / textarea / checkbox / select
+          'maxlength' => 64,            // text 上限（内核封顶 500）
+          'options'   => array('a' => '甲'), // select 专用，键即存储值
+          'hint'      => '字段下方提示',
+          'default'   => '',
+      ),
+  );
+  ```
+
+  内核按清单通用渲染表单、按类型走统一输入校验器保存，**清单外字段一律拒收**；
+  清单经 `theme_settings_schema` 过滤器，插件可追加字段。值按主题目录独立存于
+  `options.theme_settings_{dir}`（JSON），模板用 `theme_setting($key, $default)` 读取。
+  默认主题内置 ICP/公安备案号两项，展示规则见 `themes/default/footer.php`
+  （未填不展示；均填时以「|」分隔；公安备案前带 `gongan-icon.png` 图标并链接
+  `beian.mps.gov.cn` 查询页，ICP 链接 `beian.miit.gov.cn`）。主题若需自带备案图标，
+  应将 `gongan-icon.png` 随主题包分发。
 - **上传**：zip 包（≤10MB）内必须包含 `style.css`，禁止路径穿越条目；
   解压后目录名取 zip 文件名（清洗为 `[a-z0-9_-]`），不得覆盖已有主题与 `default`。
 - **删除保护**：

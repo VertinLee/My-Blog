@@ -11,7 +11,7 @@
 - 插件机制（仿 WordPress Hook）与模板机制（style.css 元数据 + zip 上传）
 - 统一审计日志（只增不改、留存 ≥180 天、查询/导出留痕）
 - 登录失败锁定（5 次/10 分钟，可配）+ IP 限流、会话 30 分钟无操作超时
-- 预装插件（默认禁用）：`smtp-mailer`（SMTP 发信）、`aliyun-sms`（阿里云短信验证码）
+- 预装插件（默认禁用）：`smtp-mailer`（SMTP 发信）、`aliyun-sms`（阿里云短信验证码）、`comment-guard`（文章级评论管制：关闭/禁止三态）
 
 ## 环境要求
 
@@ -66,7 +66,7 @@ config.php         安装程序生成（禁止 HTTP 访问）
 core/              内核（禁止 HTTP 访问，文件头部 APP_BOOT 守卫）
 themes/            模板（themes/default 为默认主题，开发指南见 themes/README.md）
 plugins/           插件（开发规范见 plugins/README.md）
-assets/            静态资源；assets/vendor/ 为本地化第三方资源（登记见其 README）
+assets/            静态资源；assets/vendor/ 为本地化第三方资源（登记见其 README），assets/front/ 为内核跨场景共用脚本；主题自有资源随主题目录存放（如 themes/default/js/）
 uploads/           上传目录（已配置禁止执行 PHP）
 user/              后台入口（/user/index.php）
 install/           安装向导（安装后应删除）

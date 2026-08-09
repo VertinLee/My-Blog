@@ -317,6 +317,9 @@ id / name / slug UNIQUE / description / sort。
 | `post_content` | filter | 文章正文渲染后输出前 |
 | `front_posts` | filter | 首页/归档/搜索列表当前页文章（排序/修饰；分页已定，不宜移除） |
 | `comment_before_save` | filter | 评论入库前（可拦截/改写） |
+| `comment_write_allowed` | filter | 前台评论增/改/删统一拦截点（返回 false 拒绝，记审计；后台不受影响） |
+| `post_saved` | action | 文章保存完成后（插件持久化随文章的扩展数据） |
+| `post_deleted` | action | 文章彻底删除后（插件清理随文章的扩展数据） |
 | `admin_menu` | action | 注册后台菜单项/设置页 |
 | `route_parse` / `front_route_{名}` | filter/action | 插件认领自定义路由（OAuth 回调/Webhook） |
 | `user_register` | action | 注册前置校验（验证码核验在此接入） |
@@ -330,7 +333,8 @@ id / name / slug UNIQUE / description / sort。
 `post_card_before/after`（列表卡片前后）、`single_content_after`（文章正文后）、
 `comments_before/after`（评论区前后）、`page_content_after`（独立页面正文后）、
 `author_header_after`（作者归档页头部区块内末尾）、`sidebar_widgets`（前台侧边栏）、
-`profile_cards`（后台个人资料页）。
+`post_edit_fields`（后台文章编辑表单内）、`post_list_row_actions`/`comment_list_row_actions`（后台列表行内操作）、
+`comment_area_state`（评论区条件渲染：list/form/actions 三态开关）、`profile_cards`（后台个人资料页）。
 
 ### 7.4 插件 API
 `plugin_option($slug,$key,$default)`、`plugin_option_update()`、`plugin_log($action,$detail)`（接统一日志）、`plugin_url($slug,$path)`、设置页渲染辅助函数。

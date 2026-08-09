@@ -54,6 +54,13 @@ defined('APP_BOOT') or exit;
 | `post_content` | filter | `$html` | 文章正文渲染后、输出前（可追加处理） |
 | `front_posts` | filter | `$posts, $context` | 首页/归档/搜索列表当前页文章数组，可排序/修饰（`$context` 为 home/category/author/search；分页已在此之前确定，不宜移除条目） |
 | `comment_before_save` | filter | `$data` | 评论入库前，可改写或拦截 |
+| `comment_write_allowed` | filter | `$allowed, $action, $postId, $commentId` | 前台评论写入统一拦截点（内核触发）；`$action` 为 create/update/delete（create 时 `$commentId=0`），返回 `false` 拒绝并记审计日志；后台评论管理不受影响 |
+| `post_edit_fields` | action | `$post` | 后台文章编辑表单内扩展字段注入点（内核视图触发，新建时 `$post` 为 null；输出需自带 `.form-row` 结构并自行转义） |
+| `post_saved` | action | `$id, $data, $isNew` | 文章保存完成后（内核触发），插件在此持久化随文章的扩展数据 |
+| `post_deleted` | action | `$id` | 文章彻底删除后（内核触发），插件清理随文章的扩展数据 |
+| `post_list_row_actions` | action | `$post` | 后台文章列表行内追加操作按钮（内核视图触发，输出需自带 CSRF 表单） |
+| `comment_list_row_actions` | action | `$comment` | 后台评论列表行内追加操作按钮（内核视图触发，输出需自带 CSRF 表单） |
+| `comment_area_state` | filter | `$state, $post` | 文章详情页评论区渲染状态（内核+主题各触发一次）；`$state` 为 `array('list','form','actions')` 布尔数组，分别控制评论列表/发表框/编辑删除按钮，`list=false` 时内核跳过评论查询 |
 | `admin_menu` | action | 无 | 注册后台菜单项/设置页 |
 | `user_register` | action | 注册数据 | 注册前置校验点位 |
 | `password_reset` | action | 找回数据 | 找回密码前置校验点位 |
@@ -69,6 +76,7 @@ defined('APP_BOOT') or exit;
 | `page_content_after` | action | `$post` | 独立页面正文结束后（主题触发） |
 | `author_header_after` | action | `$subject` | 作者归档页头部区块内末尾（主题触发，如认证标识/社交链接；`$subject` 为用户行） |
 | `sidebar_widgets` | action | 无 | 前台侧边栏追加分组/小工具（主题触发，输出需自带 `.sidebar-section` 结构并自行转义） |
+| `theme_settings_schema` | filter | `$schema, $theme` | 主题设置清单（后台设置页字段定义），插件可给指定主题追加设置项 |
 | `profile_cards` | action | `$user` | 后台个人资料页追加卡片（内核视图触发） |
 | `plugin_activate` / `plugin_deactivate` / `plugin_uninstall` | action | `$slug` | 插件生命周期 |
 
@@ -194,3 +202,5 @@ function hello_world_page()
 - `plugins/hello-world/hello-world.php`：钩子与设置页基础用法。
 - `plugins/qq-login/`：自定义路由（OAuth 回调）、登录页/个人资料页钩子注入、
   `plugin_data` 用户级绑定存储、限流与 state 防伪的完整实战。
+- `plugins/comment-guard/`：文章级评论三态管制——后台表单注入（`post_edit_fields`/`post_saved`）、
+  服务端评论写拦截（`comment_write_allowed`）、前台条件渲染（`comment_area_state`）的组合实战。
