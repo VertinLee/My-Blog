@@ -181,13 +181,17 @@ class AdminPost
             }
             DB::update('posts', $data, array('id' => $id));
             blog_log('post', 'post.update', 'success', array('post_id' => $id, 'title' => $title, 'status' => $status));
+            $isNew = false;
         } else {
             $data['author_id'] = Auth::id();
             $data['views'] = 0;
             $data['created_at'] = now();
             $id = DB::insert('posts', $data);
             blog_log('post', 'post.create', 'success', array('post_id' => $id, 'title' => $title, 'status' => $status));
+            $isNew = true;
         }
+        // 保存完成钩子：插件在此持久化随文章的扩展数据（自有表单字段自行经输入校验器读取）
+        do_action('post_saved', $id, $data, $isNew);
 
         // 侧边栏导航展示为可选项：仅独立页面可勾选，新建页面默认不加入
         $showInNav = $isPage === 1 && input_int('show_in_nav', 0, 'post') === 1;
@@ -241,6 +245,8 @@ class AdminPost
             if ($post) {
                 DB::delete('posts', array('id' => $id));
                 DB::delete('comments', array('post_id' => $id));
+                // 文章已不存在，插件可清理随文章的扩展数据
+                do_action('post_deleted', $id);
                 blog_log('post', 'post.destroy', 'success', array('post_id' => $id));
                 flash_set('success', '已彻底删除');
             }

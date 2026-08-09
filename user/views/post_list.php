@@ -98,6 +98,7 @@ $statusTags = array(
                     </form>
                     <?php endif; ?>
                 <?php endif; ?>
+                <?php do_action('post_list_row_actions', $postItem); /* 插件注入点：行内追加操作按钮（输出需自带 CSRF 表单并自行转义） */ ?>
             </td>
         </tr>
         <?php endforeach; ?>

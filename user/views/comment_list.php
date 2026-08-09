@@ -51,6 +51,7 @@ $tabs = array('all' => '全部', 'pending' => '待审核', 'published' => '已�
                     <button class="btn small">恢复</button>
                 </form>
                 <?php endif; ?>
+                <?php do_action('comment_list_row_actions', $commentItem); /* 插件注入点：行内追加操作按钮（输出需自带 CSRF 表单并自行转义） */ ?>
             </td>
         </tr>
         <?php endforeach; ?>

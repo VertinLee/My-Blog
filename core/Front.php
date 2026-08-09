@@ -318,18 +318,23 @@ class Front
         $post['category'] = $category;
 
         // 评论：游客只见 published；作者本人可见自己的 pending
-        $commentQuery = DB::query('comments')
-            ->where('post_id', '=', (int) $post['id'])
-            ->where('status', '=', 'published');
-        $comments = $commentQuery->orderBy('created_at', 'ASC')->select();
-        if (Auth::check()) {
-            $mine = DB::query('comments')
+        // 插件可经 comment_area_state 按文章关闭评论区（list=false 时连查询一并跳过）
+        $commentAreaState = apply_filters('comment_area_state', array('list' => true, 'form' => true, 'actions' => true), $post);
+        $comments = array();
+        if (!empty($commentAreaState['list'])) {
+            $commentQuery = DB::query('comments')
                 ->where('post_id', '=', (int) $post['id'])
-                ->where('user_id', '=', Auth::id())
-                ->where('status', '=', 'pending')
-                ->orderBy('created_at', 'ASC')
-                ->select();
-            $comments = array_merge($comments, $mine);
+                ->where('status', '=', 'published');
+            $comments = $commentQuery->orderBy('created_at', 'ASC')->select();
+            if (Auth::check()) {
+                $mine = DB::query('comments')
+                    ->where('post_id', '=', (int) $post['id'])
+                    ->where('user_id', '=', Auth::id())
+                    ->where('status', '=', 'pending')
+                    ->orderBy('created_at', 'ASC')
+                    ->select();
+                $comments = array_merge($comments, $mine);
+            }
         }
         $commentUsers = array();
         $uids = array();
@@ -649,6 +654,12 @@ class Front
             flash_set('error', '文章不存在');
             redirect($back);
         }
+        // 插件可按文章拦截评论写入（如评论区关闭）；后台评论管理不受影响
+        if (apply_filters('comment_write_allowed', true, 'create', $postId, 0) === false) {
+            blog_log('comment', 'comment.create', 'fail', array('post_id' => $postId, 'reason' => 'write_denied'));
+            flash_set('error', '该文章已关闭评论功能');
+            redirect($back);
+        }
         if ($content === '') {
             flash_set('error', '评论内容不能为空');
             redirect($back);
@@ -723,6 +734,12 @@ class Front
             flash_set('error', '只能修改自己发表的评论');
             redirect($back);
         }
+        // 与创建同一拦截过滤器（动作为 update），插件可按文章禁止修改
+        if (apply_filters('comment_write_allowed', true, 'update', (int) $comment['post_id'], $commentId) === false) {
+            blog_log('comment', 'comment.update', 'fail', array('comment_id' => $commentId, 'reason' => 'write_denied'));
+            flash_set('error', '该文章已关闭评论功能');
+            redirect($back);
+        }
         if ($content === '') {
             flash_set('error', '评论内容不能为空');
             redirect($back);
@@ -773,6 +790,12 @@ class Front
         if ((int) $comment['user_id'] !== Auth::id()) {
             blog_log('comment', 'comment.delete', 'fail', array('comment_id' => $commentId, 'reason' => 'not_owner'));
             flash_set('error', '只能删除自己发表的评论');
+            redirect($back);
+        }
+        // 与创建同一拦截过滤器（动作为 delete），插件可按文章禁止删除
+        if (apply_filters('comment_write_allowed', true, 'delete', (int) $comment['post_id'], $commentId) === false) {
+            blog_log('comment', 'comment.delete', 'fail', array('comment_id' => $commentId, 'reason' => 'write_denied'));
+            flash_set('error', '该文章已关闭评论功能');
             redirect($back);
         }
         // 有未删回复时禁止删除，避免回复成为无法展示的孤儿数据

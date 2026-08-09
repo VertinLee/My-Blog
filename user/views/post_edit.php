@@ -78,6 +78,8 @@ if ($currentStatus === 'pending' && !isset($statusOptions['pending'])) {
         </div>
     </div>
 
+    <?php do_action('post_edit_fields', $post); /* 插件注入点：文章表单扩展字段（新建时 $post 为 null），输出需自带 .form-row 结构并自行转义 */ ?>
+
     <?php if ($postAudit && !Auth::check_cap('moderate_posts')): ?>
     <div class="form-hint" style="margin-bottom:10px">站点已开启文章审核：提交的文章需管理员审核通过后才会发布。</div>
     <?php endif; ?>

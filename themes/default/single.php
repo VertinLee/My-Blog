@@ -5,6 +5,9 @@
 defined('APP_BOOT') or exit;
 Theme::part('header');
 $singlePost = the_post();
+// 评论区渲染状态（插件可按文章关闭/只读）：list 列表、form 发表框、actions 编辑/删除操作
+$commentAreaState = apply_filters('comment_area_state', array('list' => true, 'form' => true, 'actions' => true), $singlePost);
+$commentActionsOn = !empty($commentAreaState['actions']);
 ?>
 <div id="content">
     <?php foreach (flash_pull() as $fm): ?>
@@ -55,6 +58,7 @@ $singlePost = the_post();
     </article>
     <?php do_action('single_content_after', $singlePost); /* 插件注入点：正文结束后、评论区前（如打赏/转载/相关推荐） */ ?>
 
+    <?php if (!empty($commentAreaState['list'])): /* list=false 时评论区整体不渲染 */ ?>
     <?php do_action('comments_before', $singlePost); /* 插件注入点：评论区整体之前 */ ?>
     <section class="comments-area">
         <h2 class="comments-title">评论 (<?php echo count($comments); ?>)</h2>
@@ -75,7 +79,8 @@ $singlePost = the_post();
         }
 
         // 自己评论的编辑/删除（plan.md §5.2：三种登录角色均可删改自己的评论）
-        $singleEditId = isset($editCommentId) ? (int) $editCommentId : 0;
+        // actions=false（如评论只读态）时行内编辑与操作按钮一并失效
+        $singleEditId = isset($editCommentId) && $commentActionsOn ? (int) $editCommentId : 0;
         $singlePostUrl = Router::url('post', array(
             'slug' => $singlePost['slug'] !== '' ? $singlePost['slug'] : (int) $singlePost['id'],
             'id'   => (int) $singlePost['id'],
@@ -84,7 +89,7 @@ $singlePost = the_post();
             return Auth::check() && (int) $commentRow['user_id'] === Auth::id();
         };
         // 评论正文：命中编辑态时输出行内编辑表单，否则输出原文 + 操作行
-        $renderCommentBody = function ($commentRow) use ($isOwnComment, $singleEditId, $singlePostUrl) {
+        $renderCommentBody = function ($commentRow) use ($isOwnComment, $singleEditId, $singlePostUrl, $commentActionsOn) {
             $cid = (int) $commentRow['id'];
             $own = $isOwnComment($commentRow);
             if ($own && $singleEditId === $cid) {
@@ -100,7 +105,7 @@ $singlePost = the_post();
                 return;
             }
             echo '<div class="comment-content">' . nl2br(e($commentRow['content'])) . '</div>';
-            if ($own) {
+            if ($own && $commentActionsOn) {
                 // 伪静态回退模式下文章 URL 已含 ?r=，追加参数需改用 &
                 $sep = strpos($singlePostUrl, '?') === false ? '?' : '&';
                 echo '<div class="comment-actions">';
@@ -142,6 +147,7 @@ $singlePost = the_post();
             <?php endforeach; ?>
         </ul>
 
+        <?php if (!empty($commentAreaState['form'])): /* form=false 时隐藏发表框（评论只读态） */ ?>
         <h3 class="comments-title">发表评论</h3>
         <?php if (Auth::check()): ?>
         <form class="comment-form" method="post" action="<?php echo e(Router::url('comment_save')); ?>">
@@ -154,6 +160,8 @@ $singlePost = the_post();
         <?php else: ?>
         <p class="form-hint"><a href="<?php echo e(Router::url('login')); ?>">登录</a>后才可以发表评论。</p>
         <?php endif; ?>
+        <?php endif; ?>
     </section>
     <?php do_action('comments_after', $singlePost); /* 插件注入点：评论区整体之后 */ ?>
+    <?php endif; ?>
 <?php Theme::part('footer'); ?>
