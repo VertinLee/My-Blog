@@ -189,14 +189,14 @@ id / name / slug UNIQUE / description / sort。
 - `Router.php` 解析 `PATH_INFO`/重写后的 `r` 参数，正则匹配路由表。
 - URL 生成统一走 `Router::url('post', ['id'=>1])`，**禁止在模板中手写路径**，保证重写开关切换时链接一致。
 - 回退模式：未启用重写时 URL 为 `index.php?r=post/1.html`，由 install 自检或后台设置决定。
-- `.htaccess`：所有非真实文件/目录的请求重写至 `index.php`；同时屏蔽 `config.php`、`core/`。
+- `.htaccess`：所有非真实文件/目录的请求重写至 `index.php`；同时屏蔽 `config.php`、`core/`，并禁止 `plugins/`、`themes/` 下 PHP 文件直接执行（与 Nginx 规则对齐）。
 - `nginx.conf.example`：等价的 `try_files` + `location` 示例，含 `core/`、`config.php` 拒绝访问规则。
 
 ---
 
 ## 4. install/ 安装程序
 
-流程为向导式四步，`install/index.php` 分发；已安装（存在 `install/install.lock`）时一律 301 跳转首页。
+流程为向导式四步，`install/index.php` 分发；已安装（存在 `install/install.lock` 或根目录 `config.php`，双重守卫）时一律 301 跳转首页，防止锁文件被误删后经重装覆盖 `config.php` 导致站点被接管。
 
 1. **环境自检**（不通过则禁止下一步，红绿清单展示）：
    - PHP ≥ 7.2；
@@ -245,7 +245,7 @@ id / name / slug UNIQUE / description / sort。
 - **登录**（`/login`）：单字段接受**用户名或邮箱**（自动判别是否含 `@`）+ 密码；连续失败 5 次锁定 10 分钟（按用户名+IP）；CSRF token；登录成功 `session_regenerate_id(true)`。
 - **注册**（`/register`）：用户名、昵称、邮箱、手机号、密码；角色固定为 user；按启用的验证插件决定是否需要邮箱/短信验证码（均未启用则免验证直接注册，但保留接入点）；短信插件启用时手机号为必填项且必须通过验证码核验。
 - **找回密码**（`/forgot`）：输入用户名或邮箱 → 经 `send_verify_code` 钩子发送验证码（需 SMTP 或短信插件已启用，否则提示"请联系管理员重置"）→ 验证通过后设置新密码。
-- **验证码统一机制**：6 位数字、10 分钟有效、同场景同目标 60s 重发间隔、每目标每日 ≤10 条、错误尝试 5 次作废；存储见 §2.6；发送渠道 email/sms 由已启用插件提供，两者都启用时用户可选。
+- **验证码统一机制**：6 位数字、10 分钟有效、同场景同目标 60s 重发间隔、每目标每日 ≤10 条；错误容忍次数归声明者插件管理（内核按渠道声明读取 `plugin_option($声明者,'max_attempts')`，缺省 2、内核钳制 1-5），达到上限立即置 used=1 作废（即使仍在有效期内）；**不提供独立的核验（预检）接口，验证码对错不向前端暴露**，仅在表单提交时经条件更新原子消费一次性裁决（同一验证码并发下仅可用一次），失败统一提示“验证码错误或已过期”；发送接口另设 IP 维度限流（同一 IP 每分钟 ≤10 次）；存储见 §2.6；发送渠道 email/sms 由已启用插件提供，两者都启用时用户可选。**是否具备验证码能力按渠道声明探测（`register_verify_provider`，见 §7.4），内核不硬编码插件名**，第三方插件声明后即可接管对应渠道。
 
 ### 6.1 口令复杂度策略（等保二级·身份鉴别，服务端强制）
 以下规则在**注册、安装程序建管理员、后台管理员建号、用户改密**四个入口全部由服务端统一函数 `Auth::validate_password_strength()` 强制校验（前端强度条仅作辅助提示，不作判定依据）：
@@ -267,9 +267,9 @@ id / name / slug UNIQUE / description / sort。
 - 开关关闭时以上检查全部短路跳过，不产生任何行为差异。
 
 ### 6.3 登录失败处理与会话安全（等保二级·身份鉴别 c/d）
-- **锁定**：同一账号连续失败 `login_max_fail`（默认 5）次 → 锁定 `login_lock_minutes`（默认 10）分钟（`users.login_fail` / `locked_until` 持久化，重启不丢）；锁定期内直接拒绝并提示剩余时间；成功登录后清零。另按 IP 维度做二级限流（同一 IP 每分钟 ≤20 次登录尝试）。
-- **审计**：登录成功、登录失败（含锁定触发）、登出、管理员手动解锁，全部写 logs（`category=auth`，`result=success/fail`）。
-- **会话**：无操作 `session_timeout_minutes`（默认 30）分钟自动失效；登出时 `session_destroy()` 并使 cookie 失效（剩余信息保护）；登录成功 `session_regenerate_id(true)`；检测到 HTTPS 时 cookie 自动加 `Secure`。
+- **锁定**：同一账号连续失败 `login_max_fail`（默认 5）次 → 锁定 `login_lock_minutes`（默认 10）分钟（`users.login_fail` / `locked_until` 持久化，重启不丢）；锁定期内直接拒绝；成功登录后清零。另按 IP 维度做二级限流（同一 IP 每分钟 ≤20 次登录尝试，独立计数器实现，不依赖审计表聚合）。锁定/禁用/封禁/注销等状态的登录失败与密码错误统一提示，防止账号枚举（具体原因仅写入审计日志）。
+- **审计**：登录成功、登录失败（含锁定触发）、登出、管理员手动解锁、验证码发送与核验，全部写 logs（`category=auth/verify`，`result=success/fail`）。
+- **会话**：无操作 `session_timeout_minutes`（默认 30）分钟自动失效；登出时 `session_destroy()` 并使 cookie 失效（剩余信息保护）；登录成功 `session_regenerate_id(true)`；检测到 HTTPS 时 cookie 自动加 `Secure`；会话携带口令指纹（口令哈希的二级散列），改密（自助/找回/管理员重置）后其余既有会话指纹失配自动失效。
 
 ### 6.4 客户端 IP 获取策略（CDN 兼容，自定义标头默认不启用）
 站点经 CDN/边缘安全加速（如阿里云 ESA、DCDN、Cloudflare）回源时，`REMOTE_ADDR` 会变成 CDN 节点 IP，导致审计日志、登录锁定、IP 限流失真。为此提供统一 IP 获取机制：
@@ -338,9 +338,12 @@ id / name / slug UNIQUE / description / sort。
 
 ### 7.4 插件 API
 `plugin_option($slug,$key,$default)`、`plugin_option_update()`、`plugin_log($action,$detail)`（接统一日志）、`plugin_url($slug,$path)`、设置页渲染辅助函数。
+写入类 API（`plugin_option_update`/`plugin_data_*`/`plugin_user_*`/`plugin_register_table`）受命名空间强制校验：内核按执行上下文（插件加载、钩子回调、设置页回调期间自动识别归属插件）拒绝跨插件写入，违规记 `security` 审计；读取不受限。
+验证码渠道能力声明：`register_verify_provider($channel)`（仅插件加载期可调、强制归属声明者）与 `get_verify_provider($channel)`；内核对验证码能力的探测与策略读取仅认声明，不硬编码插件名。
 
 ### 7.5 插件管理页（仅管理员）
 列表（名称/版本/作者/描述/状态）、启用、禁用、删除（删除目录，二次确认）、插件设置页入口。插件文件必须位于 `plugins/` 且头部元数据合法才会被发现。
+不规范卸载安全网：启用列表读取时自动剔除目录已不存在的 slug（写审计）；列表页检测目录已删但仍有残留数据的插件，提供一键清理入口（复用卸载回收逻辑）。
 
 ### 7.6 插件开发文档
 `plugins/README.md` 或根 README 中附完整开发规范与示例（Hello World 插件）。
@@ -360,12 +363,13 @@ id / name / slug UNIQUE / description / sort。
   - 参数：`Action`、`Format=JSON`、`Version=2017-05-25`、`AccessKeyId`、`SignatureMethod=HMAC-SHA1`、`SignatureNonce`、`SignatureVersion=1.0`、`Timestamp`(GMT ISO8601) + 业务参数；
   - 签名：`ksort` 参数 → `rawurlencode` 键值拼接 `&` → `HTTPMethod&%2F&` + rawurlencode(查询串) → `base64(hash_hmac('sha1', $strToSign, $secret.'&', true))`；
   - HTTPS POST `https://dypnsapi.aliyuncs.com`。
-- 实现两个动作：
-  - `SendSmsVerifyCode`：PhoneNumber、SignName、TemplateCode、TemplateParam=`{"code":"##code##","min":"5"}`（`##code##` 由阿里云生成并可由阿里云核验）、CountryCode 默认 86、CodeLength(4-8)、ValidTime、Interval、SchemeName（可选）、OutId；
-  - `CheckSmsVerifyCode`：核验验证码（`##code##` 模式时优先走阿里云核验；非该模式回退本地 `verify_codes` 表核验）。
-- 设置页：AccessKeyId、AccessKeySecret、SignName、TemplateCode、SchemeName（可选）、CodeLength、ValidTime、Interval。
+- 仅实现一个动作 `SendSmsVerifyCode`，固定**本地生成码模式**：
+  - 验证码由内核生成（6 位数字），经 TemplateParam 以具体值下发（如 `{"code":"123456","min":"10"}`，不传 `##code##` 占位符）；官方文档明确该模式下阿里云接口无法校验验证码，核验完全由内核本地 `verify_codes` 表执行；
+  - 参数：PhoneNumber、CountryCode 默认 86、SignName（仅支持赠送签名，需搭配赠送模板）、TemplateCode、TemplateParam（必填）、ValidTime、Interval、SchemeName（选填，默认空，空值由 AliyunRpc 自动剔除不参签）、OutId；CodeType/CodeLength 仅占位符模式适用，本地生成码模式不传；
+  - 不实现 `CheckSmsVerifyCode`，不挂 `verify_code_check`。
+- 设置页：AccessKeyId、AccessKeySecret、SignName、TemplateCode、SchemeName（选填，默认空）、ValidTime、Interval、验证码错误容忍次数（声明者配置，内核钳制 1-5）。
 - 错误码映射为友好提示：`MOBILE_NUMBER_ILLEGAL`、`BUSINESS_LIMIT_CONTROL`、`FREQUENCY_FAIL`、`INVALID_PARAMETERS`、`FUNCTION_NOT_OPENED`。
-- 挂 `send_verify_code` / `verify_code_check`；发送与核验均写统一日志（手机号脱敏、不含明文验证码、不记录 AccessKeySecret）。
+- 挂 `send_verify_code`；发送成功后写入可核验行（used=0），错误容忍/有效期/原子消费与其它渠道完全一致；发送写统一日志（手机号脱敏、不含明文验证码、不记录 AccessKeySecret），核验经内核统一 `verify.check` 审计。
 - `plugins/aliyun-sms/README.md`：阿里云控制台开通号码认证服务、创建签名/模板、RAM 授权（`dypns:SendSmsVerifyCode`）的指引。
 
 ---

@@ -122,6 +122,8 @@ URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`
 | `plugin_table($slug, $name)` | 自建表完整表名（含前缀） |
 | `plugin_log($action, $detail)` | 写统一审计日志（category 固定 plugin） |
 | `plugin_url($slug, $path)` | 插件静态资源 URL |
+| `register_verify_provider($channel)` | 声明验证码渠道能力（仅插件加载期可调，强制归属当前插件） |
+| `get_verify_provider($channel)` | 查询渠道声明者 slug（未声明返回 null） |
 | `register_plugin_page($slug, $title, $callback)` | 注册后台设置页（在 `admin_menu` 钩子中调用） |
 
 其他可用内核 API：`add_action/add_filter`、`e()`、`Router::url()`、`Option::get()`、
@@ -146,6 +148,18 @@ URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`
 `plugin_data` 中该插件的行、经 `plugin_register_table()` 登记的自建表。
 插件无需自写清理代码；但因此也**不得**把数据写到上述范围之外
 （如直接改 users 表结构），否则卸载后残留。
+
+**不规范卸载（直接删文件夹）的安全网**：
+
+1. **启用列表自愈**：`Plugin::activeList()` 每次读取时校验目录存在性，
+   目录已消失的 slug 自动从启用列表移除并写审计（`plugin.orphan_deactivate`），
+   不会残留“已启用但代码不存在”的状态影响能力判断；
+2. **功能入口不失效**：内核能力探测基于声明/钩子而非启用列表，
+   目录消失即无声明无钩子，相关功能自动关闭，不报错；
+3. **残留数据可回收**：后台「插件管理」页自动检测目录已删但仍有
+   `plugin_data` 行或 `plugin_{slug}_*` 选项的插件，提供「清理残留数据」
+   按钮（`plugin/cleanup_orphan`，管理员权限 + CSRF + 审计留痕），
+   复用卸载回收逻辑全量清理。
 
 ## 5. 后台设置页
 
@@ -178,16 +192,29 @@ function hello_world_page()
 未启用任何插件（无设置页注册）时该菜单不显示。设置页表单必须携带
 `Csrf::field()`（内核对后台 POST 统一校验，缺失会返回 419）。
 
-## 6. 验证码插件契约（`send_verify_code` / `verify_code_check`）
+## 6. 验证码插件契约（`register_verify_provider` / `send_verify_code` / `verify_code_check`）
 
+- **渠道能力声明（必须）**：验证码发送插件必须在主文件加载期调用
+  `register_verify_provider($channel)`（目前支持 `email`/`sms`）声明渠道能力。
+  内核入口探测（注册/找回密码/改绑是否要求验证码、发送接口放行）与
+  核验策略读取**仅认声明，不硬编码任何插件名**——第三方插件声明并挂接
+  发送钩子后即可完整接管对应渠道。声明仅在插件执行上下文内有效，
+  强制归属声明者，不可冒名；同渠道多个声明者以后声明者为准。
 - 场景（`$scene`）取值：`register`（注册）、`reset`（找回密码）、
   `profile`（后台个人资料改绑邮箱/手机，仅登录用户可触发）。
-- 发送：内核已完成频率限制（60s 间隔、每日 ≤10）后调用过滤器，参数为
-  `($handled=false, $scene, $target, $channel, $code)`。
+- 发送：内核已完成频率限制（60s 间隔、每日 ≤10、IP 限流，内核强制不可绕过）后
+  调用过滤器，参数为 `($handled=false, $scene, $target, $channel, $code)`。
   插件接管时须自行把验证码写入 `verify_codes` 表（或采用云端生成模式），
   然后返回 `true`；返回其它值视为未接管。
 - 核验：`($result=null, $scene, $target, $code, $channel)`。返回 `bool` 即接管；
-  返回 `null` 回退本地 `verify_codes` 表核验（含 5 次错误作废逻辑）。
+  返回 `null` 回退本地 `verify_codes` 表核验。
+  **接管核验的插件必须自行实现等价安全策略**（错误次数控制、有效期、
+  审计留痕），此项为契约责任，内核无法运行时强制。
+- **错误容忍次数归声明者插件管理**：内核本地表核验时按渠道声明读取
+  `plugin_option($声明者, 'max_attempts', 2)`（范围 1-5 由内核钳制，缺省 2），
+  错误达到上限即置 `used=1` 作废。验证码发送插件应在自己的设置页提供该配置项。
+- 安全基线内核强制、不可被插件配置掉：重发间隔/每日上限/IP 限流、
+  原子消费（一次性）、无预检接口、统一失败文案、发送与核验全程审计。
 
 ## 7. 安全要求（违反将造成系统级漏洞）
 
@@ -196,6 +223,12 @@ function hello_world_page()
 3. 日志不得含明文密码、验证码、密钥、授权码；邮箱/手机号必须脱敏。
 4. 不得引入 Composer 依赖与运行时 CDN 资源。
 5. PHP 7.2 语法兼容（禁止箭头函数、`??=`、尾随逗号调用等）。
+6. **不得跨插件写入其它插件的命名空间**：内核按执行上下文（插件主文件加载、
+   钩子回调、设置页回调期间自动识别归属插件）强制校验 `plugin_option_update` /
+   `plugin_data_*` / `plugin_user_*` / `plugin_register_table` 的写入目标，
+   越界写入将被静默拒绝并记入 `security` 审计（action=`plugin.write_denied`）。
+   读取不受限制。注意：插件仍是管理员安装的可信服务端代码，本机制拦截的是
+   插件间的配置/数据篡改路径，不构成完整沙箱。
 
 ## 8. 完整示例
 

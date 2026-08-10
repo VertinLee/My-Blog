@@ -125,6 +125,23 @@ class AdminUser
             redirect(site_base_admin('user/list'));
         }
         $isSelf = (int) $user['id'] === Auth::id();
+        // 敏感操作（重置密码/改绑邮箱/改绑手机）必须重验操作者当前密码（等保二级）：
+        // 防止管理员会话被劫持或短暂无人值守时被用来接管其它账号
+        $oldEmail = $user['email'] !== null ? $user['email'] : '';
+        $sensitive = $newPassword !== ''
+            || $email !== $oldEmail
+            || $phone !== (string) $user['phone'];
+        if ($sensitive) {
+            $currentPassword = isset($_POST['current_password']) ? (string) $_POST['current_password'] : '';
+            $operator = Auth::user();
+            if ($currentPassword === '' || !password_verify($currentPassword, $operator['password'])) {
+                blog_log('user', 'user.update', 'fail', array(
+                    'target_user_id' => $id, 'reason' => 'operator_password_wrong',
+                ));
+                flash_set('error', '重置密码或修改邮箱/手机须填写您（操作者）的当前密码');
+                redirect(site_base_admin('user/edit&id=' . $id));
+            }
+        }
         // 自我保护：不得禁用/降权自己，避免管理员把自己锁出后台
         if ($isSelf && ($status !== 1 || $role !== 'admin')) {
             flash_set('error', '不能禁用或变更自己的角色');

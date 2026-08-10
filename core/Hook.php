@@ -6,11 +6,11 @@ defined('APP_BOOT') or exit;
 
 class Hook
 {
-    /** @var array 已注册钩子：hook => priority => [callback,...] */
+    /** @var array 已注册钩子：hook => priority => [entry,...]；entry 含回调与归属插件 */
     private static $hooks = array();
 
     /**
-     * 注册动作或过滤器
+     * 注册动作或过滤器（同时记录归属插件，供分发时恢复执行上下文）
      *
      * @param string   $hook     钩子名
      * @param callable $callback 回调
@@ -19,7 +19,8 @@ class Hook
      */
     public static function add($hook, $callback, $priority = 10)
     {
-        self::$hooks[$hook][$priority][] = $callback;
+        $owner = class_exists('Plugin') ? Plugin::currentSlug() : null;
+        self::$hooks[$hook][$priority][] = array('cb' => $callback, 'owner' => $owner);
         ksort(self::$hooks[$hook]);
     }
 
@@ -46,9 +47,14 @@ class Hook
         if (empty(self::$hooks[$hook])) {
             return;
         }
-        foreach (self::$hooks[$hook] as $callbacks) {
-            foreach ($callbacks as $callback) {
-                call_user_func_array($callback, $args);
+        foreach (self::$hooks[$hook] as $entries) {
+            foreach ($entries as $entry) {
+                // 执行期间恢复回调归属插件的执行上下文（写入命名空间校验依赖此上下文）
+                $prev = class_exists('Plugin') ? Plugin::setCurrentSlug($entry['owner']) : null;
+                call_user_func_array($entry['cb'], $args);
+                if (class_exists('Plugin')) {
+                    Plugin::setCurrentSlug($prev);
+                }
             }
         }
     }
@@ -66,10 +72,15 @@ class Hook
         if (empty(self::$hooks[$hook])) {
             return $value;
         }
-        foreach (self::$hooks[$hook] as $callbacks) {
-            foreach ($callbacks as $callback) {
+        foreach (self::$hooks[$hook] as $entries) {
+            foreach ($entries as $entry) {
+                // 同 doAction：执行期间恢复回调归属插件的执行上下文
+                $prev = class_exists('Plugin') ? Plugin::setCurrentSlug($entry['owner']) : null;
                 $params = array_merge(array($value), $args);
-                $value = call_user_func_array($callback, $params);
+                $value = call_user_func_array($entry['cb'], $params);
+                if (class_exists('Plugin')) {
+                    Plugin::setCurrentSlug($prev);
+                }
             }
         }
         return $value;

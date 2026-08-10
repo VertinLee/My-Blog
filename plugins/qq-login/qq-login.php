@@ -382,7 +382,14 @@ function qq_login_do_bind($openid, $nickname)
     redirect($profileUrl);
 }
 
-/** QQ 登录流程：按绑定关系找到账号并建立会话 */
+/**
+ * QQ 登录流程：按绑定关系找到账号并建立会话
+ *
+ * 通道身份认定（有意设计）：QQ 通道经 OAuth + OpenID 绑定关系完成身份核验，
+ * 视为号主本人的独立身份凭据；口令侧的失败锁定（locked_until）仅限制口令通道，
+ * 不阻断本通道——账号遭受暴力破解时号主仍可经 QQ 正常登录。
+ * 封禁/禁用/注销状态在两通道同等生效。
+ */
 function qq_login_do_login($openid)
 {
     $uid = qq_login_user_by_openid($openid);

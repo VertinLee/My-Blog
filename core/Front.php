@@ -64,9 +64,6 @@ class Front
             case 'verify_send':
                 self::verifySend();
                 break;
-            case 'verify_check':
-                self::verifyCheck();
-                break;
             default:
                 // 插件自定义路由：经 route_parse 认领的路由名若注册了
                 // front_route_{路由名} 动作则由插件接管，否则照常 404
@@ -432,8 +429,9 @@ class Front
         if (Auth::check()) {
             redirect(site_base_admin());
         }
-        $emailEnabled = Plugin::isActive('smtp-mailer');
-        $smsEnabled = Plugin::isActive('aliyun-sms');
+        // 验证码渠道能力按插件声明探测（register_verify_provider），不硬编码插件名
+        $emailEnabled = get_verify_provider('email') !== null;
+        $smsEnabled = get_verify_provider('sms') !== null;
         $error = '';
         $old = array('username' => '', 'nickname' => '', 'email' => '', 'phone' => '');
 
@@ -474,10 +472,10 @@ class Front
                     $error = $pwdErr;
                     break;
                 }
-                // 验证码核验（启用对应插件时才要求）
+                // 验证码核验（启用对应插件时才要求）；原子消费，同一验证码并发下只能使用一次
                 if ($emailEnabled) {
                     $code = input_text('email_code', '', 6, 'post');
-                    if ($email === '' || !self::checkVerifyCode('register', $email, $code, 'email')) {
+                    if ($email === '' || !self::consumeVerifyCode('register', $email, $code, 'email')) {
                         $error = '邮箱验证码错误或已过期';
                         break;
                     }
@@ -489,7 +487,7 @@ class Front
                         break;
                     }
                     $code = input_text('sms_code', '', 6, 'post');
-                    if (!self::checkVerifyCode('register', $phone, $code, 'sms')) {
+                    if (!self::consumeVerifyCode('register', $phone, $code, 'sms')) {
                         $error = '短信验证码错误或已过期';
                         break;
                     }
@@ -510,13 +508,6 @@ class Front
                     'locked_until'        => null,
                     'created_at'          => now(),
                 ));
-                // 标记验证码已使用
-                if ($emailEnabled && $email !== '') {
-                    self::markCodeUsed('register', $email, 'email');
-                }
-                if ($smsEnabled && $phone !== '') {
-                    self::markCodeUsed('register', $phone, 'sms');
-                }
                 blog_log('user', 'user.register', 'success', array('user_id' => $userId, 'username' => $username));
                 do_action('user_register', $userId, array(
                     'username' => $username, 'email' => $email, 'phone' => $phone,
@@ -542,10 +533,12 @@ class Front
         if (Auth::check()) {
             redirect(site_base_admin());
         }
-        $emailEnabled = Plugin::isActive('smtp-mailer');
-        $smsEnabled = Plugin::isActive('aliyun-sms');
+        // 验证码渠道能力按插件声明探测（register_verify_provider），不硬编码插件名
+        $emailEnabled = get_verify_provider('email') !== null;
+        $smsEnabled = get_verify_provider('sms') !== null;
         $error = '';
         $info = '';
+        $account = '';
         if (!$emailEnabled && !$smsEnabled) {
             Theme::render('forgot', array(
                 'page_type'    => 'forgot',
@@ -594,7 +587,8 @@ class Front
                     $error = $pwdErr;
                     break;
                 }
-                if (!self::checkVerifyCode('reset', $target, $code, $channel)) {
+                // 原子消费验证码：核验与标记已用在同一条件更新中完成，无并发复用窗口
+                if (!self::consumeVerifyCode('reset', $target, $code, $channel)) {
                     $error = '验证码错误或已过期';
                     break;
                 }
@@ -603,7 +597,6 @@ class Front
                     $error = $result['msg'];
                     break;
                 }
-                self::markCodeUsed('reset', $target, $channel);
                 blog_log('auth', 'password.reset', 'success', array('user_id' => (int) $user['id']));
                 do_action('password_reset', (int) $user['id']);
                 flash_set('success', '密码已重置，请使用新密码登录');
@@ -616,6 +609,8 @@ class Front
             'title'        => '找回密码',
             'error'        => $error,
             'info'         => $info,
+            // 失败后回填账号（非敏感信息；密码与验证码不回显），避免用户重填
+            'account'      => $account,
             'emailEnabled' => $emailEnabled,
             'smsEnabled'   => $smsEnabled,
         ));
@@ -826,6 +821,10 @@ class Front
         if ($scene === '') {
             json_out(array('code' => 1, 'msg' => '参数不完整'));
         }
+        // IP 维度限流：防止攻击者枚举大量不同目标把本站当作邮件/短信轰炸器
+        if (!ip_throttle_allow('verify_send', 10)) {
+            json_out(array('code' => 1, 'msg' => '操作过于频繁，请稍后再试'));
+        }
         // 个人资料改绑场景仅限登录用户，防止被当作对外发码接口滥用
         if ($scene === 'profile' && !Auth::check()) {
             json_out(array('code' => 1, 'msg' => '请先登录'));
@@ -846,7 +845,7 @@ class Front
             } else {
                 $user = DB::query('users')->where('username', '=', $account)->first();
                 if ($user) {
-                    if (!empty($user['phone']) && Plugin::isActive('aliyun-sms')) {
+                    if (!empty($user['phone']) && get_verify_provider('sms') !== null) {
                         $channel = 'sms';
                         $target = $user['phone'];
                     } else {
@@ -868,11 +867,9 @@ class Front
             }
         }
 
-        if ($channel === 'email' && !Plugin::isActive('smtp-mailer')) {
-            json_out(array('code' => 1, 'msg' => '邮件发送未启用'));
-        }
-        if ($channel === 'sms' && !Plugin::isActive('aliyun-sms')) {
-            json_out(array('code' => 1, 'msg' => '短信发送未启用'));
+        // 渠道可用性按插件声明判断（第三方插件声明后即放行）
+        if (get_verify_provider($channel) === null) {
+            json_out(array('code' => 1, 'msg' => '该渠道未启用验证码插件'));
         }
 
         // 频率限制：60s 重发间隔
@@ -896,50 +893,46 @@ class Front
         $code = (string) random_int(100000, 999999);
         $handled = apply_filters('send_verify_code', false, $scene, $target, $channel, $code);
         if ($handled === true) {
+            // 验证码发送必须留痕（等保审计；target 由 Logger 自动脱敏）
+            blog_log('verify', 'verify.send', 'success', array(
+                'scene' => $scene, 'channel' => $channel, 'target' => $target,
+            ));
             json_out(array('code' => 0, 'msg' => '验证码已发送'));
         }
         json_out(array('code' => 1, 'msg' => '发送渠道不可用'));
     }
 
-    /** 验证码核验（AJAX，供前端即时反馈；提交时服务端会再次核验） */
-    private static function verifyCheck()
-    {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            json_out(array('code' => 405, 'msg' => 'Method Not Allowed'));
-        }
-        Csrf::verifyOrDie();
-        $scene = input_enum('scene', array('register', 'reset', 'profile'), '', 'post');
-        $channel = input_enum('channel', array('email', 'sms'), '', 'post');
-        $target = $channel === 'email'
-            ? input_email('target', '', 'post')
-            : input_phone('target', '', 'post');
-        $code = input_text('code', '', 6, 'post');
-        if ($scene === '' || $target === '' || $code === '') {
-            json_out(array('code' => 1, 'msg' => '参数不完整'));
-        }
-        if ($scene === 'profile' && !Auth::check()) {
-            json_out(array('code' => 1, 'msg' => '请先登录'));
-        }
-        $ok = self::checkVerifyCode($scene, $target, $code, $channel);
-        json_out($ok ? array('code' => 0, 'msg' => '验证通过') : array('code' => 1, 'msg' => '验证码错误'));
-    }
-
     /**
-     * 验证码核验统一实现：优先走插件（verify_code_check 过滤器），否则本地表核验
-     * 错误尝试 5 次作废
+     * 验证码核验并原子消费（唯一核验入口，仅表单提交时调用）：
+     * 核验通过后以 used=0 条件更新标记已用，影响行数为 0 即被并发请求抢先消费，
+     * 彻底消除“先核验后标记”之间的重放/并发复用窗口。
+     * 系统不提供独立的预检/即时反馈接口：验证码对错不向前端暴露，
+     * 仅在此处一次性裁决，失败统一提示“验证码错误或已过期”，防止有效性探测
      */
-    public static function checkVerifyCode($scene, $target, $code, $channel)
+    public static function consumeVerifyCode($scene, $target, $code, $channel)
     {
         $pluginResult = apply_filters('verify_code_check', null, $scene, $target, $code, $channel);
         if ($pluginResult !== null) {
-            return (bool) $pluginResult;
+            $ok = (bool) $pluginResult;
+        } else {
+            $ok = self::localConsumeCode($scene, $target, $code, $channel);
         }
-        return self::localVerifyCode($scene, $target, $code, $channel, false);
+        // 核验行为留痕（等保审计；target 由 Logger 自动脱敏）
+        blog_log('verify', 'verify.check', $ok ? 'success' : 'fail', array(
+            'scene' => $scene, 'channel' => $channel, 'target' => $target,
+        ));
+        return $ok;
     }
 
-    /** 本地 verify_codes 表核验 */
-    private static function localVerifyCode($scene, $target, $code, $channel, $markUsed)
+    /** 本地 verify_codes 表核验 + 原子标记已用 */
+    private static function localConsumeCode($scene, $target, $code, $channel)
     {
+        // 错误容忍次数归声明者插件管理（按渠道声明取 slug，不硬编码插件名）；
+        // 内核仅负责范围钳制（1-5），无声明者取缺省 2
+        $provider = get_verify_provider($channel);
+        $maxAttempts = $provider !== null
+            ? max(1, min(5, (int) plugin_option($provider, 'max_attempts', 2)))
+            : 2;
         $row = DB::query('verify_codes')
             ->where('scene', '=', $scene)
             ->where('target', '=', $target)
@@ -953,35 +946,27 @@ class Front
         if (strtotime($row['expires_at']) < time()) {
             return false;
         }
-        if ((int) $row['attempts'] >= 5) {
+        if ((int) $row['attempts'] >= $maxAttempts) {
             return false;
         }
         if (!hash_equals((string) $row['code'], (string) $code)) {
+            // 错误计数累加；达到上限时一并置 used=1 彻底作废，
+            // 后续核验因 used=0 条件不再命中该行，即使仍在有效期内也无法再试
+            $fail = (int) $row['attempts'] + 1;
+            $update = array('attempts' => $fail);
+            if ($fail >= $maxAttempts) {
+                $update['used'] = 1;
+            }
             DB::query('verify_codes')->where('id', '=', (int) $row['id'])
-                ->update(array('attempts' => (int) $row['attempts'] + 1));
+                ->update($update);
             return false;
         }
-        if ($markUsed) {
-            DB::query('verify_codes')->where('id', '=', (int) $row['id'])
-                ->update(array('used' => 1));
-        }
-        return true;
-    }
-
-    /** 标记验证码已使用（后台改绑邮箱/手机场景亦需复用，故公开） */
-    public static function markCodeUsed($scene, $target, $channel)
-    {
-        $row = DB::query('verify_codes')
-            ->where('scene', '=', $scene)
-            ->where('target', '=', $target)
-            ->where('channel', '=', $channel)
+        // 条件更新保证同一验证码仅能被消费一次
+        $affected = DB::query('verify_codes')
+            ->where('id', '=', (int) $row['id'])
             ->where('used', '=', 0)
-            ->orderBy('id', 'DESC')
-            ->first();
-        if ($row) {
-            DB::query('verify_codes')->where('id', '=', (int) $row['id'])
-                ->update(array('used' => 1));
-        }
+            ->update(array('used' => 1));
+        return $affected > 0;
     }
 
     /** 统一 404 页 */

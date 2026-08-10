@@ -21,7 +21,8 @@ Theme::part('header');
             <?php echo Csrf::field(); ?>
             <p>
                 <label>用户名或邮箱</label>
-                <input type="text" name="account" id="forgotAccount" required>
+                <input type="text" name="account" id="forgotAccount"
+                       value="<?php echo e($account); ?>" required>
             </p>
             <div class="form-hint">输入用户名时通过绑定手机发送短信；输入邮箱时通过邮箱发送验证码</div>
             <p>

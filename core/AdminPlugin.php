@@ -13,7 +13,60 @@ class AdminPlugin
         Admin::render('插件管理', 'plugin_list', array(
             'plugins' => Plugin::discover(),
             'actives' => Plugin::activeList(),
+            'orphans' => self::orphanSlugs(),
         ));
+    }
+
+    /**
+     * 检测不规范卸载（直接删文件夹）的残留 slug：目录不存在但仍有数据
+     *
+     * @return array slug 列表
+     */
+    private static function orphanSlugs()
+    {
+        $discovered = Plugin::discover();
+        $candidates = array();
+        // 残留来源一：plugin_data 表行
+        $rows = DB::query('plugin_data')->select(array('plugin'));
+        foreach ($rows as $r) {
+            $candidates[$r['plugin']] = 1;
+        }
+        // 残留来源二：plugin_{slug}_* 选项（slug 仅小写字母数字连字符、不含下划线，
+        // 故命名空间前缀后第一个下划线之前即完整 slug）；跳过内核自用键
+        $rows = DB::query('options')
+            ->where('option_key', 'LIKE', 'plugin\_%')
+            ->select(array('option_key'));
+        foreach ($rows as $r) {
+            if ($r['option_key'] === 'plugin_data_purge_at') {
+                continue;
+            }
+            $rest = substr($r['option_key'], 7);
+            $pos = strpos($rest, '_');
+            if ($pos !== false) {
+                $candidates[substr($rest, 0, $pos)] = 1;
+            }
+        }
+        $orphans = array();
+        foreach (array_keys($candidates) as $slug) {
+            if (!isset($discovered[$slug]) && preg_match('/^[a-z0-9-]{1,64}$/', $slug)) {
+                $orphans[] = $slug;
+            }
+        }
+        sort($orphans);
+        return $orphans;
+    }
+
+    /** 清理不规范卸载的残留数据（目录必须确不存在，内核复用卸载回收逻辑） */
+    public static function cleanupOrphanAction()
+    {
+        Auth::require_cap('manage_plugins');
+        $slug = self::slugInput('post');
+        if ($slug === '' || !Plugin::purgeOrphanData($slug)) {
+            flash_set('error', '该插件无需清理或目录仍存在');
+        } else {
+            flash_set('success', '残留数据已清理：' . $slug);
+        }
+        redirect(site_base_admin('plugin/list'));
     }
 
     /** 启用插件 */
@@ -70,7 +123,10 @@ class AdminPlugin
             Admin::forbidden();
         }
         ob_start();
+        // 设置页回调执行期间置于该插件上下文：其内写入仅允许自身命名空间
+        $prev = Plugin::setCurrentSlug($slug);
         call_user_func($pages[$slug]['callback']);
+        Plugin::setCurrentSlug($prev);
         $contentHtml = ob_get_clean();
         Admin::render($pages[$slug]['title'], 'plugin_page', array('contentHtml' => $contentHtml));
     }

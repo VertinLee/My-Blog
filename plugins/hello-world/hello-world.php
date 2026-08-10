@@ -45,6 +45,7 @@ function hello_world_page()
     }
     $text = plugin_option('hello-world', 'text', '你好，世界');
     echo '<form method="post">';
+    echo Csrf::field();
     echo '<div class="form-row"><label>页尾文案</label>'
         . '<input type="text" name="hw_text" value="' . e($text) . '"></div>';
     echo '<button class="btn" type="submit">保存</button>';

@@ -4,6 +4,20 @@
  */
 defined('APP_BOOT') or exit;
 ?>
+<?php if (!empty($orphans)): ?>
+<div class="card">
+    <p class="tip">以下插件的目录已不存在（可能被直接删除而非经后台卸载），但其配置与数据仍残留在数据库中：</p>
+    <?php foreach ($orphans as $orphanSlug): ?>
+    <form method="post" action="<?php echo e(site_base_admin('plugin/cleanup_orphan')); ?>" style="display:inline;margin-right:12px"
+          onsubmit="return confirm('确认清理该插件的全部残留数据？此操作不可恢复')">
+        <?php echo Csrf::field(); ?>
+        <input type="hidden" name="slug" value="<?php echo e($orphanSlug); ?>">
+        <span><?php echo e($orphanSlug); ?></span>
+        <button class="btn small red">清理残留数据</button>
+    </form>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 <div class="card">
     <div class="table-wrap">
     <table class="table">

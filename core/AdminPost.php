@@ -128,6 +128,14 @@ class AdminPost
             redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
         }
 
+        // 封面与头像同一口径：仅允许站内 uploads/ 下相对路径，拒绝 .. 防路径穿越与站外引用
+        if ($cover !== ''
+            && (strpos($cover, '..') !== false || !preg_match('#^uploads/[A-Za-z0-9/._-]+$#', $cover))
+        ) {
+            flash_set('error', '封面路径非法（仅允许 uploads/ 目录下的图片）');
+            redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
+        }
+
         // slug 不得为纯数字：文章路由 /post/{key}.html 对纯数字 key 按 id 解析，
         // 纯数字 slug 会永远被 id 查找拦截而无法访问；页面路由同库同规则，一并限制
         if ($slug !== '' && ctype_digit($slug)) {

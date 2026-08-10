@@ -50,10 +50,10 @@ class AdminProfile
                     flash_set('error', '邮箱已被占用');
                     redirect(site_base_admin('profile'));
                 }
-                // 邮件插件启用时，改绑邮箱必须通过新邮箱的验证码核验；未启用则免验
-                if (Plugin::isActive('smtp-mailer')) {
+                // 邮箱渠道已声明插件时，改绑邮箱必须通过新邮箱的验证码核验；未声明则免验
+                if (get_verify_provider('email') !== null) {
                     $emailCode = input_text('email_code', '', 6, 'post');
-                    if (!Front::checkVerifyCode('profile', $email, $emailCode, 'email')) {
+                    if (!Front::consumeVerifyCode('profile', $email, $emailCode, 'email')) {
                         blog_log('user', 'profile.update', 'fail', array('reason' => 'email_code_wrong'));
                         flash_set('error', '邮箱验证码错误或已过期');
                         redirect(site_base_admin('profile'));
@@ -67,10 +67,10 @@ class AdminProfile
                     flash_set('error', '该手机号已被其他账号使用');
                     redirect(site_base_admin('profile'));
                 }
-                // 短信插件启用时，改绑手机必须通过新手机的验证码核验；未启用则免验
-                if (Plugin::isActive('aliyun-sms')) {
+                // 短信渠道已声明插件时，改绑手机必须通过新手机的验证码核验；未声明则免验
+                if (get_verify_provider('sms') !== null) {
                     $smsCode = input_text('sms_code', '', 6, 'post');
-                    if (!Front::checkVerifyCode('profile', $phone, $smsCode, 'sms')) {
+                    if (!Front::consumeVerifyCode('profile', $phone, $smsCode, 'sms')) {
                         blog_log('user', 'profile.update', 'fail', array('reason' => 'sms_code_wrong'));
                         flash_set('error', '短信验证码错误或已过期');
                         redirect(site_base_admin('profile'));
@@ -86,15 +86,6 @@ class AdminProfile
             'phone'     => $phone,
             'avatar'    => $avatar,
         ), array('id' => (int) $user['id']));
-        // 核验通过的验证码标记已用，防止重放
-        if ($contactChanged) {
-            if ($email !== '' && $email !== $oldEmail && Plugin::isActive('smtp-mailer')) {
-                Front::markCodeUsed('profile', $email, 'email');
-            }
-            if ($phone !== '' && $phone !== $user['phone'] && Plugin::isActive('aliyun-sms')) {
-                Front::markCodeUsed('profile', $phone, 'sms');
-            }
-        }
         blog_log('user', 'profile.update', 'success', array(
             'contact_changed' => $contactChanged ? 1 : 0,
         ));

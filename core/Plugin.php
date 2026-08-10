@@ -9,6 +9,43 @@ class Plugin
     /** @var array|null 插件元数据缓存 slug => meta */
     private static $cache = null;
 
+    /** @var string|null 当前正在执行的插件 slug（加载/钩子回调/设置页回调期间非空） */
+    private static $currentSlug = null;
+
+    /** 当前执行上下文所属插件（内核上下文返回 null） */
+    public static function currentSlug()
+    {
+        return self::$currentSlug;
+    }
+
+    /**
+     * 切换执行上下文（返回先前的 slug 供调用方恢复，支持嵌套）
+     *
+     * @param string|null $slug 插件 slug；null 表示回到内核上下文
+     * @return string|null
+     */
+    public static function setCurrentSlug($slug)
+    {
+        $prev = self::$currentSlug;
+        self::$currentSlug = $slug;
+        return $prev;
+    }
+
+    /** @var array 验证码渠道声明：channel => 声明者 slug（请求内有效） */
+    private static $verifyProviders = array();
+
+    /** 记录验证码渠道声明（仅 register_verify_provider 内部使用） */
+    public static function setVerifyProvider($channel, $slug)
+    {
+        self::$verifyProviders[$channel] = $slug;
+    }
+
+    /** 渠道声明者 slug（未声明返回 null） */
+    public static function verifyProviderOf($channel)
+    {
+        return isset(self::$verifyProviders[$channel]) ? self::$verifyProviders[$channel] : null;
+    }
+
     /**
      * 扫描 plugins/ 目录发现全部合法插件
      *
@@ -74,10 +111,30 @@ class Plugin
         return $meta;
     }
 
-    /** 已启用插件 slug 列表 */
+    /**
+     * 已启用插件 slug 列表（含自愈：目录已不存在的 slug 自动移除并留痕，
+     * 防止“直接删文件夹”式不规范卸载后残留启用状态影响能力判断）
+     */
     public static function activeList()
     {
-        return Option::getJson('active_plugins', array());
+        $list = Option::getJson('active_plugins', array());
+        $all = self::discover();
+        $valid = array();
+        $dropped = array();
+        foreach ($list as $slug) {
+            if (isset($all[$slug])) {
+                $valid[] = $slug;
+            } else {
+                $dropped[] = $slug;
+            }
+        }
+        if (!empty($dropped)) {
+            Option::set('active_plugins', $valid);
+            blog_log('plugin', 'plugin.orphan_deactivate', 'success', array(
+                'slugs' => implode(',', $dropped),
+            ));
+        }
+        return $valid;
     }
 
     /** 是否已启用 */
@@ -86,13 +143,15 @@ class Plugin
         return in_array($slug, self::activeList(), true);
     }
 
-    /** 加载全部已启用插件主文件 */
+    /** 加载全部已启用插件主文件（加载期间设置执行上下文，供钩子归属与写入校验使用） */
     public static function loadActive()
     {
         foreach (self::activeList() as $slug) {
             $file = APP_ROOT . '/plugins/' . $slug . '/' . $slug . '.php';
             if (is_file($file)) {
+                $prev = self::setCurrentSlug($slug);
                 require_once $file;
+                self::setCurrentSlug($prev);
             }
         }
     }
@@ -162,6 +221,23 @@ class Plugin
     }
 
     /**
+     * 清理不规范卸载（直接删文件夹）的残留数据：仅当目录确不存在时执行，
+     * 复用卸载清理逻辑（options/plugin_data/自建表全量回收）
+     *
+     * @param string $slug 插件 slug
+     * @return bool
+     */
+    public static function purgeOrphanData($slug)
+    {
+        if (!preg_match('/^[a-z0-9-]{1,64}$/', $slug) || is_dir(APP_ROOT . '/plugins/' . $slug)) {
+            return false;
+        }
+        self::cleanupData($slug);
+        blog_log('plugin', 'plugin.orphan_cleanup', 'success', array('slug' => $slug));
+        return true;
+    }
+
+    /**
      * 卸载残留清理：plugin_{slug}_* 选项、plugin_data 中该插件的行、
      * 经 plugin_register_table() 登记的自建表（插件无需自行清理）
      *
@@ -223,6 +299,59 @@ function plugin_option($slug, $key, $default = null)
 }
 
 /**
+ * 插件写入命名空间校验：插件执行上下文（加载/钩子回调/设置页回调）内
+ * 只允许写自身 slug 的命名空间；内核上下文（null）放行。
+ * 违规写入拒绝并记 security 审计（防插件间配置/数据篡改）
+ *
+ * @param string $slug 目标插件 slug
+ * @return bool true 允许写入 / false 已拒绝
+ */
+function plugin_guard_write($slug)
+{
+    $current = Plugin::currentSlug();
+    if ($current !== null && $current !== $slug) {
+        blog_log('security', 'plugin.write_denied', 'fail', array(
+            'target' => $slug, 'by' => $current,
+        ));
+        return false;
+    }
+    return true;
+}
+
+/**
+ * 声明验证码渠道能力（验证码发送插件在加载期调用）。
+ * 仅允许在插件执行上下文内调用并强制归属当前插件（防冒名声明）；
+ * 内核入口探测（注册/找回/改绑）与核验策略读取仅认声明，不硬编码插件名，
+ * 第三方插件声明后即可完整接管对应渠道的验证码能力
+ *
+ * @param string $channel 渠道标识（目前支持 email/sms）
+ * @return bool
+ */
+function register_verify_provider($channel)
+{
+    if (!in_array($channel, array('email', 'sms'), true)) {
+        return false;
+    }
+    $slug = Plugin::currentSlug();
+    if ($slug === null) {
+        return false;
+    }
+    Plugin::setVerifyProvider($channel, $slug);
+    return true;
+}
+
+/**
+ * 渠道声明者 slug（未声明返回 null）
+ *
+ * @param string $channel 渠道标识
+ * @return string|null
+ */
+function get_verify_provider($channel)
+{
+    return Plugin::verifyProviderOf($channel);
+}
+
+/**
  * 更新插件配置项
  *
  * @param string $slug  插件 slug
@@ -232,6 +361,9 @@ function plugin_option($slug, $key, $default = null)
  */
 function plugin_option_update($slug, $key, $value)
 {
+    if (!plugin_guard_write($slug)) {
+        return;
+    }
     Option::set('plugin_' . $slug . '_' . $key, $value);
 }
 
@@ -304,6 +436,9 @@ function plugin_data_get($slug, $key, $default = null)
  */
 function plugin_data_delete($slug, $key)
 {
+    if (!plugin_guard_write($slug)) {
+        return;
+    }
     DB::delete('plugin_data', array('plugin' => $slug, 'scope' => 'global', 'user_id' => 0, 'data_key' => $key));
 }
 
@@ -328,12 +463,18 @@ function plugin_user_get($slug, $userId, $key, $default = null)
  */
 function plugin_user_delete($slug, $userId, $key)
 {
+    if (!plugin_guard_write($slug)) {
+        return;
+    }
     DB::delete('plugin_data', array('plugin' => $slug, 'scope' => 'user', 'user_id' => (int) $userId, 'data_key' => $key));
 }
 
-/** 统一写入：存在则更新，不存在则插入（唯一索引兜底） */
+/** 统一写入：存在则更新，不存在则插入（唯一索引兜底；跨命名空间写入被拒绝） */
 function plugin_data_write($slug, $scope, $userId, $key, $value, $ttl)
 {
+    if (!plugin_guard_write($slug)) {
+        return;
+    }
     if (is_array($value)) {
         $value = json_encode($value);
     }
@@ -401,6 +542,9 @@ function plugin_data_purge_expired()
 function plugin_register_table($slug, $name)
 {
     if (!preg_match('/^[a-z0-9_]{1,32}$/', $name)) {
+        return false;
+    }
+    if (!plugin_guard_write($slug)) {
         return false;
     }
     $key = 'plugin_' . $slug . '_tables';

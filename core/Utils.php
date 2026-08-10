@@ -369,6 +369,64 @@ function flash_pull()
 }
 
 /**
+ * IP 维度分钟窗口限流：options 表独立计数器，不依赖审计表聚合。
+ * 计数器键含客户端 IP 散列，被限流的请求由调用方自行决定是否写审计，
+ * 避免攻击者以高频请求向只增不改的审计表持续灌数据
+ *
+ * @param string $bucket       业务桶名（login/verify_send 等）
+ * @param int    $maxPerMinute 同一 IP 每分钟上限
+ * @return bool true 放行 / false 超限
+ */
+function ip_throttle_allow($bucket, $maxPerMinute)
+{
+    $key = 'throttle_' . $bucket . '_' . md5(client_ip());
+    $now = time();
+    $parts = explode('|', (string) Option::get($key, ''));
+    $start = isset($parts[0]) && $parts[0] !== '' ? (int) $parts[0] : 0;
+    $count = isset($parts[1]) ? (int) $parts[1] : 0;
+    if ($now - $start >= 60) {
+        $start = $now;
+        $count = 0;
+    }
+    $count++;
+    Option::set($key, $start . '|' . $count);
+    return $count <= $maxPerMinute;
+}
+
+/**
+ * 限流计数器惰性清理（每日最多一次，由 bootstrap 触发）：
+ * 删除窗口开始时间超过 1 小时的过期计数器行，防止 options 表无限增长
+ *
+ * @return void
+ */
+function ip_throttle_purge()
+{
+    $last = (int) Option::get('throttle_last_purge', 0);
+    if (time() - $last < 86400) {
+        return;
+    }
+    Option::set('throttle_last_purge', time());
+    try {
+        // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 throttle_ 前缀
+        $rows = DB::query('options')
+            ->where('option_key', 'LIKE', 'throttle\_%')
+            ->select(array('option_key', 'option_value'));
+        foreach ($rows as $row) {
+            if ($row['option_key'] === 'throttle_last_purge') {
+                continue;
+            }
+            $parts = explode('|', (string) $row['option_value']);
+            $start = isset($parts[0]) ? (int) $parts[0] : 0;
+            if ($start > 0 && $start < time() - 3600) {
+                DB::delete('options', array('option_key' => $row['option_key']));
+            }
+        }
+    } catch (Exception $ex) {
+        error_log('[blog] throttle purge failed: ' . $ex->getMessage());
+    }
+}
+
+/**
  * 时间友好格式化
  *
  * @param string $datetime Y-m-d H:i:s

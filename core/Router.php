@@ -105,9 +105,8 @@ class Router
         if ($path === 'verify/send') {
             return array('route' => 'verify_send', 'params' => array());
         }
-        if ($path === 'verify/check') {
-            return array('route' => 'verify_check', 'params' => array());
-        }
+        // 注意：不提供独立的验证码核验（预检）路由——验证码对错不向前端暴露，
+        // 仅在表单提交时由服务端一次性裁决，防止有效性探测
 
         // 未知路径默认 404；先经 route_parse 过滤器，插件可认领自定义路由
         // （如 OAuth 回调、Webhook），回调签名：($route, $path)
@@ -223,8 +222,6 @@ class Router
                 return '/comment/delete';
             case 'verify_send':
                 return '/verify/send';
-            case 'verify_check':
-                return '/verify/check';
             case 'admin':
                 $m = isset($params['m']) ? $params['m'] : '';
                 return site_base_admin($m);

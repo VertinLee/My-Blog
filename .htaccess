@@ -10,6 +10,10 @@ Options -Indexes
     RewriteRule ^config\.php$ - [F,L]
     RewriteRule ^core/ - [F,L]
 
+    # 插件/主题目录下的 PHP 文件一律禁止直接执行（与 Nginx 规则对齐；
+    # 静态资源不受影响，另有文件头部 APP_BOOT 守卫双重防护）
+    RewriteRule ^(plugins|themes)/.+\.php$ - [F,L]
+
     # 真实存在的文件/目录与独立入口直接放行
     RewriteRule ^(install|user|assets|uploads|plugins|themes)(/|$) - [L]
     RewriteCond %{REQUEST_FILENAME} -f [OR]

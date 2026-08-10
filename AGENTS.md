@@ -41,7 +41,7 @@
 5. **Session**：登录成功后必须 `session_regenerate_id(true)`；Session cookie 必须 `HttpOnly`，HTTPS 下必须加 `Secure`；会话无操作超时（默认 30 分钟）必须实现；登出必须 `session_destroy()` 并使 cookie 失效。
 6. **上传**：上传文件必须用 fileinfo 校验真实 MIME，白名单（jpg/png/webp/gif），随机重命名；`uploads/` 必须配置禁止 PHP 执行的规则。
 7. **敏感文件**：`config.php`、`core/` 下文件必须无法被 HTTP 直接访问（rewrite 规则 + 文件头部 `defined('APP_BOOT') or exit;` 双重防护）。
-8. **频率限制与锁定（等保二级·登录失败处理）**：登录必须实现"同一账号连续失败 5 次锁定 10 分钟"（持久化到 `users.login_fail`/`locked_until`，禁止只用 Session 计数）+ IP 维度限流；注册、验证码发送/校验接口必须实现频率限制（60s 重发间隔、每日上限、错误尝试 5 次作废）。
+8. **频率限制与锁定（等保二级·登录失败处理）**：登录必须实现"同一账号连续失败 5 次锁定 10 分钟"（持久化到 `users.login_fail`/`locked_until`，禁止只用 Session 计数）+ IP 维度限流；注册、验证码发送/校验接口必须实现频率限制（60s 重发间隔、每日上限、错误尝试达上限作废——上限由发送插件经 `plugin_option($plugin,'max_attempts')` 管理，缺省 2、内核钳制 1-5，达到上限立即置 used=1，禁止缺省高于 5）。
 9. **输入校验**：所有 GET/POST 参数必须经统一校验器（`input_int/input_email/input_phone/input_slug/input_enum/input_text`）处理，禁止在业务代码中直接使用 `$_GET`/`$_POST` 原值；SQL 中无法参数绑定的部分（排序、LIMIT、表名）必须走白名单或整型强转。
 10. **错误信息**：`debug=0`（默认）时禁止向页面输出文件路径、SQL 语句、堆栈信息；统一 404/500 错误页。
 11. **安全响应头**：内核必须统一输出 `X-Content-Type-Options: nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy`；前台文章页输出受限 CSP（仅允许 self 本地化资源）。
@@ -52,7 +52,7 @@
 
 1. **角色体系**：公开注册只能产生 `role=user`；`editor`/`admin` 只能由管理员在后台授予。任何代码路径不得绕过该规则。
 2. **审核开关**：文章审核、评论审核均为可选开关（存 options）；开启时仅管理员可审核发布；游客只能看到 `published` 状态的文章与评论。
-3. **默认插件**：`smtp-mailer` 与 `aliyun-sms` 预装但**默认禁用**；二者必须实现为符合 `plan.md` §7 规范的标准插件（通过 Hook 接入，禁止在内核中硬编码其逻辑）。
+3. **默认插件**：`smtp-mailer` 与 `aliyun-sms` 预装但**默认禁用**；二者必须实现为符合 `plan.md` §7 规范的标准插件（通过 Hook 接入，禁止在内核中硬编码其逻辑）；验证码发送插件必须经 `register_verify_provider()` 声明渠道能力，内核对验证码能力的探测与策略读取仅认声明，禁止硬编码插件名。
 4. **阿里云短信**：必须用手写的纯 PHP RPC 签名客户端（HMAC-SHA1，仅依赖 cURL），禁止引入阿里云官方 SDK（其依赖 Composer/Guzzle）。
 5. **审计日志**：所有非游客操作及登录成败、锁定/解锁、角色变更、验证码发送与核验必须经 `blog_log()` 记录（含 category 与 result）；插件日志必须走 `plugin_log()`；日志内容必须脱敏。
 6. **编辑器**：后台编辑器固定使用本地化的 **Vditor**；未经用户明确同意不得替换。

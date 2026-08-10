@@ -60,6 +60,15 @@ class Auth
             self::$user = null;
             return null;
         }
+        // 口令指纹校验：改密（自助/找回/管理员重置）后口令哈希变化，
+        // 其余既有会话指纹失配即自动失效；旧版本建立的会话无指纹，一并强制重登
+        if (!isset($_SESSION['pwd_fp'])
+            || !hash_equals(self::passwordFingerprint($user['password']), (string) $_SESSION['pwd_fp'])
+        ) {
+            unset($_SESSION['uid'], $_SESSION['pwd_fp'], $_SESSION['role'], $_SESSION['last_active']);
+            self::$user = null;
+            return null;
+        }
         self::$user = $user;
         return self::$user;
     }
@@ -167,18 +176,10 @@ class Auth
      */
     public static function attempt($account, $password)
     {
-        $ip = client_ip();
-
         // IP 维度二级限流：同一 IP 每分钟 ≤20 次登录尝试
-        $minuteAgo = date('Y-m-d H:i:s', time() - 60);
-        $attempts = DB::query('logs')
-            ->where('ip', '=', $ip)
-            ->where('category', '=', 'auth')
-            ->where('action', 'LIKE', 'login%')
-            ->where('created_at', '>', $minuteAgo)
-            ->count();
-        if ($attempts >= 20) {
-            blog_log('auth', 'login.rate_limited', 'fail', array('account' => $account));
+        // 独立 options 计数器实现（不依赖审计表聚合）；被限流的请求不逐条写日志，
+        // 避免攻击者以高频请求向只增不改的审计表持续灌数据
+        if (!ip_throttle_allow('login', 20)) {
             return array('ok' => false, 'msg' => '操作过于频繁，请稍后再试');
         }
 
@@ -195,28 +196,27 @@ class Auth
             return array('ok' => false, 'msg' => '账号或密码错误');
         }
 
-        // 锁定期检查
+        // 锁定期检查：与密码错误统一提示，防止探测账号是否存在及其状态（原因仅入审计日志）
         if (!empty($user['locked_until']) && strtotime($user['locked_until']) > time()) {
-            $minutes = max(1, ceil((strtotime($user['locked_until']) - time()) / 60));
             blog_log('auth', 'login.fail', 'fail', array('account' => $account, 'reason' => 'locked'));
-            return array('ok' => false, 'msg' => '账号已锁定，请 ' . $minutes . ' 分钟后再试');
+            return array('ok' => false, 'msg' => '账号或密码错误');
         }
 
         if ((int) $user['status'] !== 1) {
             blog_log('auth', 'login.fail', 'fail', array('account' => $account, 'reason' => 'disabled'));
-            return array('ok' => false, 'msg' => '账号已被禁用，请联系管理员');
+            return array('ok' => false, 'msg' => '账号或密码错误');
         }
 
-        // 封禁：内容保留但禁止登录（不泄露更多账号信息，仅提示封禁状态）
+        // 封禁：内容保留但禁止登录（不泄露账号状态细节，统一按认证失败提示）
         if (!empty($user['is_banned'])) {
             blog_log('auth', 'login.fail', 'fail', array('account' => $account, 'reason' => 'banned'));
-            return array('ok' => false, 'msg' => '账号已被封禁，请联系管理员');
+            return array('ok' => false, 'msg' => '账号或密码错误');
         }
 
         // 注销：禁止登录，前台历史内容匿名展示由 Front 层处理
         if (!empty($user['is_deleted'])) {
             blog_log('auth', 'login.fail', 'fail', array('account' => $account, 'reason' => 'deleted'));
-            return array('ok' => false, 'msg' => '该账号已注销');
+            return array('ok' => false, 'msg' => '账号或密码错误');
         }
 
         if (!password_verify($password, $user['password'])) {
@@ -267,9 +267,21 @@ class Auth
         $_SESSION['uid'] = (int) $user['id'];
         $_SESSION['role'] = $user['role'];
         $_SESSION['last_active'] = time();
+        $_SESSION['pwd_fp'] = self::passwordFingerprint($user['password']);
         unset($_SESSION['pwd_expired']);
         self::$user = null;
         self::$userLoaded = false;
+    }
+
+    /**
+     * 口令指纹：口令哈希的二级散列，存入会话用于改密后失效既有会话
+     *
+     * @param string $passwordHash users.password 字段值
+     * @return string
+     */
+    private static function passwordFingerprint($passwordHash)
+    {
+        return hash('sha256', (string) $passwordHash);
     }
 
     /**
@@ -380,10 +392,15 @@ class Auth
                 'created_at'    => now(),
             ));
         }
+        $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
         DB::update('users', array(
-            'password'            => password_hash($newPassword, PASSWORD_DEFAULT),
+            'password'            => $newHash,
             'password_changed_at' => now(),
         ), array('id' => (int) $userId));
+        // 当前会话若是本人，同步刷新口令指纹保持登录态；其余会话指纹失配自动失效
+        if (isset($_SESSION['uid']) && (int) $_SESSION['uid'] === (int) $userId) {
+            $_SESSION['pwd_fp'] = self::passwordFingerprint($newHash);
+        }
         unset($_SESSION['pwd_expired']);
         blog_log('auth', 'password.change', 'success', array('user_id' => (int) $userId));
         return array('ok' => true, 'msg' => '密码修改成功');

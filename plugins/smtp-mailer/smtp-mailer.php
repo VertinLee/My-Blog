@@ -10,6 +10,9 @@ defined('APP_BOOT') or exit;
 
 require_once dirname(__FILE__) . '/SmtpClient.php';
 
+/** 声明邮箱渠道验证码能力（内核入口探测/策略读取仅认声明，不硬编码插件名） */
+register_verify_provider('email');
+
 /** 接管邮箱验证码发送（channel=email） */
 add_filter('send_verify_code', 'smtp_mailer_send', 10, 5);
 
@@ -119,6 +122,8 @@ function smtp_mailer_page()
                 plugin_option_update('smtp-mailer', 'password', $password);
             }
             plugin_option_update('smtp-mailer', 'from_name', input_text('from_name', '', 64, 'post'));
+            // 邮箱验证码错误容忍次数：内核核验时读取本配置（范围 1-5 由内核钳制），错满即作废
+            plugin_option_update('smtp-mailer', 'max_attempts', max(1, min(5, input_int('max_attempts', 2, 'post'))));
             plugin_log('smtp.config', array('result' => 'success'));
             echo '<p class="tip">配置已保存。</p>';
         } else {
@@ -165,6 +170,9 @@ function smtp_mailer_page()
         . '<input type="password" name="password" autocomplete="new-password"></div>';
     echo '<div class="form-row"><label>发件人名称</label>'
         . '<input type="text" name="from_name" value="' . e($cfg['from_name']) . '"></div>';
+    echo '<div class="form-row"><label>验证码错误容忍次数（次，1-5，默认 2；错满即作废，需重新发送）</label>'
+        . '<input type="number" name="max_attempts" min="1" max="5" value="'
+        . max(1, min(5, (int) plugin_option('smtp-mailer', 'max_attempts', 2))) . '"></div>';
     echo '<button class="btn" type="submit">保存配置</button>';
     echo '</form>';
 

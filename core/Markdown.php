@@ -270,17 +270,10 @@ class Markdown
         return '<a href="' . e($url) . '" rel="noopener">' . $m[1] . '</a>';
     }
 
-    /** URL 安全校验：仅允许相对路径与 http/https */
+    /** URL 安全校验（委托静态版，保持单一判定逻辑） */
     private function isSafeUrl($url)
     {
-        if ($url === '' || strpos($url, 'javascript:') === 0 || strpos($url, 'data:') === 0
-            || strpos($url, 'vbscript:') === 0) {
-            return false;
-        }
-        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $url)) {
-            return (bool) preg_match('#^https?://#i', $url);
-        }
-        return true;
+        return self::isSafeUrlStatic($url);
     }
 
     /** 围栏代码块渲染 */
@@ -447,15 +440,22 @@ class Markdown
         }
     }
 
-    /** 静态版 URL 安全校验 */
+    /**
+     * 静态版 URL 安全校验：仅允许相对路径与 http(s) 绝对地址
+     * 浏览器解析 URL 前会先百分号解码、再剔除首尾及协议段内的空白与 C0 控制字符，
+     * 因此判定前必须做同样规范化，否则 " javascript:"、"%20javascript:"、"java\tscript:"
+     * 等变体可绕过位置 0 的协议黑名单在前台执行脚本
+     */
     private static function isSafeUrlStatic($url)
     {
-        if ($url === '' || stripos($url, 'javascript:') === 0 || stripos($url, 'data:') === 0
-            || stripos($url, 'vbscript:') === 0) {
+        $probe = rawurldecode((string) $url);
+        $probe = preg_replace('/[\x00-\x20\x7f]+/', '', $probe);
+        if ($probe === '' || stripos($probe, 'javascript:') === 0 || stripos($probe, 'data:') === 0
+            || stripos($probe, 'vbscript:') === 0) {
             return false;
         }
-        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $url)) {
-            return (bool) preg_match('#^https?://#i', $url);
+        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $probe)) {
+            return (bool) preg_match('#^https?://#i', $probe);
         }
         return true;
     }

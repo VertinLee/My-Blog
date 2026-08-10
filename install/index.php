@@ -14,8 +14,9 @@ session_name('cb_install_sid');
 session_set_cookie_params(0, '/', '', isset($_SERVER['HTTPS']), true);
 session_start();
 
-// 已安装则跳转首页
-if (is_file(__DIR__ . '/install.lock')) {
+// 已安装则跳转首页（双重守卫：install.lock 或 config.php 任一存在即视为已安装；
+// 防止锁文件被误删后经重装覆盖 config.php 导致站点被接管）
+if (is_file(__DIR__ . '/install.lock') || is_file(APP_ROOT . '/config.php')) {
     $dir = str_replace('\\', '/', dirname(dirname($_SERVER['SCRIPT_NAME'])));
     $base = ($dir === '/' || $dir === '.') ? '' : rtrim($dir, '/');
     header('Location: ' . $base . '/');

@@ -72,6 +72,10 @@ $lockRoot = $isEdit && !empty($isRoot);
             <label>重置密码（留空则不修改；8-64 位、大小写/数字/特殊字符至少三类）</label>
             <input type="password" name="new_password" autocomplete="new-password">
         </div>
+        <div class="form-row">
+            <label>您的当前密码（重置密码或修改邮箱/手机时必填，敏感操作重验）</label>
+            <input type="password" name="current_password" autocomplete="current-password">
+        </div>
         <?php else: ?>
         <p class="tip">新建用户将自动生成随机初始密码，保存后仅展示一次。</p>
         <?php endif; ?>
