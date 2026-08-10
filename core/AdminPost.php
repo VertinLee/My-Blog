@@ -201,7 +201,8 @@ class AdminPost
         // 保存完成钩子：插件在此持久化随文章的扩展数据（自有表单字段自行经输入校验器读取）
         do_action('post_saved', $id, $data, $isNew);
 
-        // 侧边栏导航展示为可选项：仅独立页面可勾选，新建页面默认不加入
+        // 侧边栏导航展示仅对独立页面生效：非独立页面即使传入该选项也一律忽略（下方 array_diff 同时会移除
+        // 其在导航中的既有记录，防止页面转回普通文章后残留）；新建页面默认不加入
         $showInNav = $isPage === 1 && input_int('show_in_nav', 0, 'post') === 1;
         $navIds = array();
         foreach (Option::getJson('nav_page_ids', array()) as $navId) {

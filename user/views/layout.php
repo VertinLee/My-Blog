@@ -14,11 +14,23 @@ $adminUser = Auth::user();
 <meta name="robots" content="noindex,nofollow">
 <title><?php echo e($pageTitle); ?> - 后台管理</title>
 <link rel="stylesheet" href="<?php echo e(assets_url('admin/admin.css')); ?>">
+<script>
+// 渲染前应用已保存的明暗偏好，避免亮色闪屏（cb-darkmode 键与前台默认主题共用）
+(function () {
+    try {
+        var saved = localStorage.getItem('cb-darkmode');
+        var dark = saved === 'true' || (saved === null && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+            document.documentElement.className += ' darkmode';
+        }
+    } catch (err) { /* 隐私模式下静默回退亮色 */ }
+})();
+</script>
 <?php do_action('admin_head'); /* 插件后台样式/脚本注入点（head 内） */ ?>
 </head>
 <body>
 <div class="admin-layout">
-    <aside class="admin-side">
+    <aside class="admin-side" id="admin-side">
         <div class="side-brand"><?php echo e(site_name()); ?><span>管理后台</span></div>
         <nav class="side-menu">
             <?php foreach ($menuItems as $item): ?>
@@ -46,10 +58,19 @@ $adminUser = Auth::user();
             <?php endif; ?>
             <?php endforeach; ?>
         </nav>
+        <div class="side-foot">
+            <button type="button" class="darkmode-toggle" id="admin-darkmode-toggle" title="切换明暗模式" aria-label="切换明暗模式">
+                <span id="admin-darkmode-icon">☾</span>明暗切换
+            </button>
+        </div>
     </aside>
+    <div class="admin-side-overlay" id="admin-side-overlay"></div>
     <div class="admin-body">
         <header class="admin-top">
-            <div class="top-title"><?php echo e($pageTitle); ?></div>
+            <div class="top-left">
+                <button type="button" class="side-toggle" id="admin-side-toggle" aria-label="切换导航菜单" aria-expanded="false">☰</button>
+                <div class="top-title"><?php echo e($pageTitle); ?></div>
+            </div>
             <div class="top-user">
                 <?php echo e($adminUser['nickname']); ?>（<?php echo e($adminUser['role']); ?>）
                 <a href="<?php echo e(Router::url('home')); ?>" target="_blank">查看站点</a>
@@ -67,6 +88,7 @@ $adminUser = Auth::user();
         </main>
     </div>
 </div>
+<script src="<?php echo e(assets_url('admin/admin.js')); ?>"></script>
 <?php if (isset($viewScripts)): ?>
 <?php foreach ($viewScripts as $scriptUrl): ?>
 <script src="<?php echo e($scriptUrl); ?>"></script>

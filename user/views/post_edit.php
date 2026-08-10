@@ -27,6 +27,8 @@ if ($postAudit) {
 if ($currentStatus === 'pending' && !isset($statusOptions['pending'])) {
     $statusOptions['pending'] = '待审核';
 }
+// 是否勾选了独立页面：控制“显示在侧边栏导航”项的显隐（该选项仅独立页面生效）
+$isPageOn = $post && (int) $post['is_page'] === 1;
 ?>
 <div class="card">
 <form method="post" action="<?php echo e(site_base_admin('post/save')); ?>">
@@ -65,15 +67,15 @@ if ($currentStatus === 'pending' && !isset($statusOptions['pending'])) {
         <div class="form-row" style="margin:0">
             <label>&nbsp;</label>
             <label style="display:flex;gap:6px;align-items:center">
-                <input type="checkbox" name="is_page" value="1" <?php echo $post && (int) $post['is_page'] === 1 ? 'checked' : ''; ?>>
+                <input type="checkbox" name="is_page" value="1" <?php echo $isPageOn ? 'checked' : ''; ?>>
                 作为独立页面（不出现在文章列表）
             </label>
         </div>
-        <div class="form-row" style="margin:0">
+        <div class="form-row" style="margin:0<?php echo $isPageOn ? '' : ';display:none'; ?>" id="showInNavRow">
             <label>&nbsp;</label>
             <label style="display:flex;gap:6px;align-items:center">
                 <input type="checkbox" name="show_in_nav" value="1" <?php echo !empty($inNav) ? 'checked' : ''; ?>>
-                显示在侧边栏导航（仅独立页面生效）
+                显示在侧边栏导航
             </label>
         </div>
     </div>
@@ -188,3 +190,19 @@ if ($currentStatus === 'pending' && !isset($statusOptions['pending'])) {
 })();
 </script>
 <?php endif; ?>
+
+<script>
+(function () {
+    // “显示在侧边栏导航”仅对独立页面生效：取消勾选独立页面时隐藏该项并清除勾选
+    //（后端对非独立页面传入该选项同样直接忽略）
+    var pageBox = document.querySelector('input[name="is_page"]');
+    var navRow = document.getElementById('showInNavRow');
+    if (!pageBox || !navRow) { return; }
+    var navBox = navRow.querySelector('input[name="show_in_nav"]');
+    function syncNavRow() {
+        navRow.style.display = pageBox.checked ? '' : 'none';
+        if (!pageBox.checked && navBox) { navBox.checked = false; }
+    }
+    pageBox.addEventListener('change', syncNavRow);
+})();
+</script>
