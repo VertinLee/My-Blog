@@ -1,6 +1,8 @@
 /**
- * 后台公共交互：明暗模式切换（与前台默认主题共用 cb-darkmode 键，localStorage 记忆，默认跟随系统）
- * + 移动端 ☰ 抽屉式导航（固定侧栏滑入滑出 + 遮罩）
+ * 后台公共交互（layui 版）：
+ * 1. 明暗模式切换（与前台默认主题共用 cb-darkmode 键，localStorage 记忆，默认跟随系统）
+ * 2. 移动端 ☰ 抽屉式导航（固定侧栏滑入滑出 + 遮罩）
+ * 3. layui 模块初始化：导航/表单控件渲染、data-confirm 弹层确认、闪存消息轻提示
  */
 (function () {
     'use strict';
@@ -24,9 +26,11 @@
         } else {
             document.documentElement.classList.remove('darkmode');
         }
+        // 图标随状态切换：暗色下显示太阳（点击回亮色），亮色下显示月亮
         var icon = document.getElementById('admin-darkmode-icon');
         if (icon) {
-            icon.textContent = enable ? '☀' : '☾';
+            icon.classList.remove('layui-icon-moon', 'layui-icon-light');
+            icon.classList.add(enable ? 'layui-icon-light' : 'layui-icon-moon');
         }
     }
 
@@ -96,9 +100,75 @@
         }
     }
 
+    /** data-confirm 表单：提交前经 layer.confirm 二次确认（取代原生 confirm） */
+    function initConfirmForms(layer) {
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (!form || !form.getAttribute) {
+                return;
+            }
+            var msg = form.getAttribute('data-confirm');
+            if (!msg) {
+                return;
+            }
+            if (layer) {
+                e.preventDefault();
+                layer.confirm(msg, { icon: 3, title: '操作确认', btn: ['确认', '取消'] }, function (index) {
+                    layer.close(index);
+                    form.submit();
+                });
+            } else {
+                // layui 未加载时回退原生确认，功能不受影响
+                if (!window.confirm(msg)) {
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+
+    /** 闪存消息轻提示（DOM 内已有可见块，toast 仅作强化，取第一条避免连弹） */
+    function initFlashToast(layer) {
+        var msgs = window.CB_FLASH;
+        if (!msgs || !msgs.length) {
+            return;
+        }
+        var first = msgs[0];
+        layer.msg(first.text, {
+            icon: first.type === 'success' ? 1 : 2,
+            time: 2500,
+            anim: 6
+        });
+    }
+
+    /** layui 模块初始化：导航/下拉/开关渲染 + 弹层交互 */
+    function initLayui() {
+        if (!window.layui || !layui.use) {
+            // layui 缺失时仅保留原生确认回退
+            initConfirmForms(null);
+            return;
+        }
+        layui.use(['element', 'form', 'layer'], function () {
+            var layer = layui.layer;
+            initConfirmForms(layer);
+            initFlashToast(layer);
+            // element 模块渲染导航树/选项卡/折叠面板；部分版本自动初始化，此处显式兜底
+            if (layui.element && layui.element.render) {
+                layui.element.render();
+            }
+            // form 模块加载时会自动渲染页面上的下拉、开关等，
+            // 此处显式再渲染一次，兜底插件钩子在 DOM 就绪后追加的控件
+            if (layui.form && layui.form.render) {
+                layui.form.render();
+            }
+            // 暴露给视图脚本（封面/头像上传等）复用
+            window.CB_ADMIN = { layer: layer, form: layui.form };
+        });
+    }
+
     function init() {
         initDarkMode();
         initSidebar();
+        initLayui();
     }
 
     if (document.readyState === 'loading') {
