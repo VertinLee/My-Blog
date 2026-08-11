@@ -22,6 +22,9 @@
     --side-w: 220px;
 }
 * { box-sizing: border-box; }
+/* hidden 属性兜底：作者样式表（如 layui 的 .layui-textarea{display:block}）
+   会覆盖浏览器 UA 样式表的 [hidden]{display:none}，此处强制保证 hidden 生效 */
+[hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
 body.layui-layout-body {
     background: var(--bg-main); color: var(--text-primary);
@@ -67,6 +70,9 @@ a:hover { color: var(--accent-dark); }
 }
 .admin-top-nav .layui-nav-item { line-height: var(--header-h); }
 .admin-top-nav .layui-nav-item a { color: var(--text-primary); font-size: 13px; }
+/* 悬停/展开态文字与箭头：覆写 layui 默认的 color:#fff，避免浅色主题下白字白底 */
+.admin-top-nav .layui-nav-item a:hover,
+.admin-top-nav .layui-nav-item.layui-this > a { color: var(--accent-dark); }
 .admin-top-nav .layui-nav-bar, .admin-top-nav .layui-this:after { display: none; }
 .top-role { color: var(--text-secondary); font-size: 12px; }
 .admin-top-nav .layui-nav-child {
@@ -114,8 +120,16 @@ a:hover { color: var(--accent-dark); }
 .admin-nav-tree .layui-nav-child { background: transparent; }
 .admin-nav-tree .layui-nav-child dd > a { padding-left: 50px; height: 40px; line-height: 40px; font-size: 13px; }
 .admin-nav-tree .layui-nav-more { color: var(--text-secondary); }
-.admin-nav-tree .layui-icon { margin-right: 6px; }
+/* 图标固定宽度居中：不同图标字形宽窄不一（如 group 字形左侧留白），
+   统一容器宽度保证各菜单项文字纵向对齐 */
+.admin-nav-tree .layui-nav-item > a > .layui-icon {
+    display: inline-block; width: 16px; text-align: center; margin-right: 6px;
+}
 .admin-nav-tree .layui-nav-item.group-on > a { color: var(--accent-dark); font-weight: 600; }
+/* layui 对展开态组标题有 .layui-nav-itemed>a{color:#fff!important}（深色导航栏设计），
+   浅色侧栏下会白字白底，须以同权重 !important 强制回归：常规展开用主文字色，激活组用主色 */
+.admin-nav-tree .layui-nav-item.layui-nav-itemed > a { color: var(--text-primary) !important; }
+.admin-nav-tree .layui-nav-item.group-on > a { color: var(--accent-dark) !important; }
 
 /* 移动端抽屉遮罩 */
 .admin-side-overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .3); z-index: 1000; }
@@ -160,6 +174,10 @@ button.layui-btn[disabled] { opacity: .55; cursor: not-allowed; }
     background: var(--bg-card);
 }
 .table-wrap .layui-table { margin: 0; width: 100%; max-width: none; background: transparent; }
+/* layui 默认给 lay-skin=line/row 表格加 1px #eee 外边框，深色下呈白边；
+   外框已由 .table-wrap 提供，此处去掉重复边框 */
+.table-wrap .layui-table[lay-skin=line],
+.table-wrap .layui-table[lay-skin=row] { border: 0; }
 .layui-table { color: var(--text-primary); }
 .layui-table th {
     background: var(--bg-side); color: var(--text-secondary); font-weight: 600;
@@ -218,9 +236,12 @@ input.invalid.layui-input { border-color: var(--danger); }
 .layui-select-none, .layui-select-tips { color: var(--text-secondary); }
 /* 行内筛选表单 */
 .filter-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.filter-bar .layui-input, .filter-bar .layui-select { width: auto; min-width: 120px; }
+/* 仅直接子元素限宽：避免波及下拉渲染包装层内部的输入框（其宽度被改为 auto 后
+   会按固有尺寸溢出 150px 包装层，横向盖住相邻控件） */
+.filter-bar > .layui-input, .filter-bar > .layui-select { width: auto; min-width: 120px; }
 /* layui 渲染后的下拉包装层：行内场景给定固定宽，避免宽度塌缩 */
 .filter-bar .layui-form-select { width: 150px; min-width: 130px; }
+.filter-bar .layui-form-select .layui-input { width: 100%; min-width: 0; }
 
 /* ===== 选项卡（状态筛选页签） ===== */
 .layui-tab-brief { margin: 0 0 16px; }
@@ -252,10 +273,26 @@ input.invalid.layui-input { border-color: var(--danger); }
     margin: 0 5px 5px 0; height: 30px; line-height: 30px; padding: 0 12px;
 }
 .layui-laypage a:hover { border-color: var(--accent); color: var(--accent); }
-.layui-laypage .layui-laypage-curr { background: none; border: 0; padding: 0; margin: 0 5px 5px 0; }
-.layui-laypage .layui-laypage-curr .layui-laypage-em { background-color: var(--accent); border-radius: 4px; }
-.layui-laypage .layui-laypage-curr em:last-child { color: #fff; }
+/* 当前页双层结构：外层 span 需保留与其他页码一致的内边距撑起宽度
+   （置 0 会缩成文字宽），内层 em 绝对定位绘制底色 */
+.layui-laypage .layui-laypage-curr {
+    position: relative; padding: 0 12px; height: 30px; line-height: 30px;
+    border: 0; background: none; margin: 0 5px 5px 0;
+}
+.layui-laypage .layui-laypage-curr .layui-laypage-em {
+    left: 0; top: 0; padding: 0; background-color: var(--accent); border-radius: 4px;
+}
+.layui-laypage .layui-laypage-curr em:last-child { position: relative; color: #fff; font-style: normal; }
 .layui-laypage .layui-laypage-skip, .layui-laypage .layui-laypage-count { border: 0; background: none; color: var(--text-secondary); }
+
+/* ===== laydate 日期面板：亮色下将 layui 默认绿对齐站点青绿主色 ===== */
+.layui-laydate, .layui-laydate-hint { border-color: var(--border-color); border-radius: var(--radius); }
+.layui-laydate-content td.laydate-selected > div { background-color: rgba(74, 124, 126, .15); }
+.layui-laydate-content td:hover { background-color: rgba(74, 124, 126, .08); }
+.layui-laydate .laydate-btns-confirm { background-color: var(--accent); border-color: var(--accent); color: #fff; }
+.layui-laydate .laydate-btns-confirm:hover { background-color: var(--accent-dark); border-color: var(--accent-dark); }
+.layui-laydate .laydate-day-mark::after { background-color: var(--accent); }
+.layui-laydate-footer span:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ===== 弹层（layer）暗色适配 ===== */
 html.darkmode .layui-layer { background: var(--bg-card); color: var(--text-primary); }
@@ -358,8 +395,37 @@ html.darkmode {
     --warn: #D9B44A;
 }
 html.darkmode .admin-nav-tree .layui-nav-item a:hover { background: rgba(107, 174, 168, .1); color: var(--accent); }
+/* 暗色选中态收敛：文字回归主色、仅留淡底色与左侧竖条标识，避免整行发绿 */
 html.darkmode .admin-nav-tree .layui-nav-item.layui-this > a,
-html.darkmode .admin-nav-tree .layui-nav-child dd.layui-this > a { background: rgba(107, 174, 168, .14); color: var(--accent-light); }
+html.darkmode .admin-nav-tree .layui-nav-child dd.layui-this > a {
+    background: rgba(107, 174, 168, .10); color: var(--text-primary); font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+html.darkmode .admin-nav-tree .layui-nav-item.group-on > a { color: var(--text-primary); }
+/* 暗色下同样需压制 layui 的 .layui-nav-itemed>a{color:#fff!important}，保持选中态收敛风格 */
+html.darkmode .admin-nav-tree .layui-nav-item.layui-nav-itemed > a { color: var(--text-primary) !important; }
+html.darkmode .admin-nav-tree .layui-nav-item.group-on > a { color: var(--text-primary) !important; }
+/* 暗色下拉选中项：改用更沉稳的 accent-dark 底 + 白字，降低刺眼度 */
+html.darkmode .layui-form-select dl dd.layui-this { background-color: var(--accent-dark); }
+html.darkmode .layui-form-select dl dd.layui-this:hover { background-color: var(--accent-dark); }
+/* 暗色 laydate 面板：纸面卡片底色 + 主色系高亮 */
+html.darkmode .layui-laydate, html.darkmode .layui-laydate-list, html.darkmode .layui-laydate-hint {
+    background-color: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+}
+html.darkmode .layui-laydate-header i, html.darkmode .layui-laydate-header span { color: var(--text-secondary); }
+html.darkmode .layui-laydate-header i:hover, html.darkmode .layui-laydate-header span:hover { color: var(--accent); }
+html.darkmode .layui-laydate-content th { color: var(--text-secondary); }
+html.darkmode .layui-laydate-content td { color: var(--text-primary); }
+html.darkmode .layui-laydate-content td.laydate-day-prev,
+html.darkmode .layui-laydate-content td.laydate-day-next { color: var(--text-secondary); opacity: .55; }
+html.darkmode .layui-laydate-content td.laydate-selected > div { background-color: rgba(107, 174, 168, .18); }
+html.darkmode .layui-laydate-content td:hover { background-color: rgba(107, 174, 168, .10); }
+html.darkmode .layui-laydate-footer { border-top: 1px solid var(--border-color); }
+html.darkmode .layui-laydate-footer span { background-color: var(--bg-card); border-color: var(--border-color); color: var(--text-secondary); }
+html.darkmode .layui-laydate-footer span:hover { border-color: var(--accent); color: var(--accent); }
+html.darkmode .layui-laydate .laydate-btns-confirm { background-color: var(--accent); border-color: var(--accent); color: #fff; }
+html.darkmode .layui-laydate .laydate-time-text { color: var(--accent); }
 html.darkmode .layui-table tbody tr:hover { background: rgba(107, 174, 168, .07); }
 html.darkmode .layui-btn-primary { background-color: var(--bg-card); }
 html.darkmode .layui-btn-danger { background-color: var(--danger); color: #1A1A1A; }

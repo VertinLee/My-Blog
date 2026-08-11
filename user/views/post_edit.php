@@ -43,7 +43,7 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
     <?php // 别名/分类/状态/页面选项：行内多列 ?>
     <div class="filter-bar" style="align-items:flex-start;margin-bottom:14px">
         <div>
-            <label class="v-label">别名（slug），可选，用于伪静态 URL；小写字母/数字/连字符，不能为纯数字</label>
+            <label class="v-label">别名，不能为纯数字</label>
             <input type="text" name="slug" value="<?php echo $post ? e($post['slug']) : ''; ?>" pattern="[a-z0-9-]*" class="layui-input" style="width:240px">
         </div>
         <div>
@@ -116,19 +116,42 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
 </div>
 
 <?php if ($vditorAvailable): ?>
-<link rel="stylesheet" href="<?php echo e(assets_url('vendor/vditor/dist/index.css')); ?>">
+<link id="cbVditorCss" rel="stylesheet" href="<?php echo e(assets_url('vendor/vditor/dist/index.css')); ?>">
 <script src="<?php echo e(assets_url('vendor/vditor/dist/index.min.js')); ?>"></script>
 <script>
+// index.css 必须移入 head 尾部：Vditor 初始化时会把 content-theme css（dark/light）
+// 动态追加到 head 末尾，两条 .vditor-reset 规则特异性相同、文档顺序居后者生效；
+// 若 index.css 留在 body（位于动态样式之后），其浅色文字色会覆盖 dark.css 导致暗色黑字
+(function () {
+    var link = document.getElementById('cbVditorCss');
+    if (link) { document.head.appendChild(link); }
+})();
 (function () {
     var area = document.getElementById('contentArea');
+    // 明暗联动：head 内联脚本已在渲染前应用 darkmode 类，此处读取即可；
+    // 运行时切换由 admin.js 的 applyDarkMode 调 setTheme 同步
+    var isDark = document.documentElement.classList.contains('darkmode');
     window.cbVditor = new Vditor('vditor', {
         // 必须指定本地 cdn：Vditor 默认从 unpkg CDN 懒加载 lute/图标等子资源，违反禁 CDN 约束
         cdn: <?php echo json_encode(assets_url('vendor/vditor')); ?>,
+        // emoji 图片路径同样默认指向内置 CDN，须显式指向本地 dist/images/emoji
+        emojiPath: <?php echo json_encode(assets_url('vendor/vditor/dist/images/emoji')); ?>,
         height: 420,
-        mode: 'ir',
+        // 默认分屏渲染（sv）；所见即所得 wysiwyg / 即时渲染 ir 可在工具栏切换
+        mode: 'sv',
+        // 编辑器整体主题（工具栏/编辑区）：暗色用官方 dark 皮肤（样式已含在本地 index.css）
+        theme: isDark ? 'dark' : 'classic',
         value: area.value,
         cache: { enable: false },
-        preview: { math: { engine: 'katex' } },
+        // 预览内容主题：必须显式指定本地 path —— Vditor 默认从 unpkg CDN 拉取 content-theme css，
+        // 不指定则暗色下 dark.css 加载失败，wysiwyg/ir/预览区文字呈黑底黑字
+        preview: {
+            math: { engine: 'katex' },
+            theme: {
+                current: isDark ? 'dark' : 'light',
+                path: <?php echo json_encode(assets_url('vendor/vditor/dist/css/content-theme')); ?>
+            }
+        },
         toolbarConfig: { pin: true },
         upload: {
             url: <?php echo json_encode(site_base_admin('upload/image')); ?>,

@@ -1,9 +1,19 @@
 <?php
 /**
  * 后台视图：日志中心（只读；无编辑/删除入口）
- * 筛选下拉经 layui form 模块渲染；日期使用原生 date 输入
+ * 筛选下拉经 layui form 模块渲染；日期范围经 layui laydate 选择，
+ * 选中后由 admin.js 拆回隐藏域 from/to 提交（后端契约不变），
+ * 无 JS 时隐藏域保持当前筛选值原样提交
  */
 defined('APP_BOOT') or exit;
+// 范围框回显文本：双侧均有值时拼为范围，否则回显已有单侧值
+if ($fFrom !== '' && $fTo !== '') {
+    $rangeText = $fFrom . ' ~ ' . $fTo;
+} elseif ($fFrom !== '') {
+    $rangeText = $fFrom;
+} else {
+    $rangeText = $fTo;
+}
 ?>
 <div class="card">
     <form method="get" action="<?php echo e(site_base_admin('log/list')); ?>" class="layui-form filter-bar">
@@ -21,8 +31,12 @@ defined('APP_BOOT') or exit;
             <option value="fail" <?php echo $fResult === 'fail' ? 'selected' : ''; ?>>失败</option>
         </select>
         <input type="text" name="keyword" placeholder="动作关键词" value="<?php echo e($fKeyword); ?>" class="layui-input" style="width:140px">
-        <input type="date" name="from" value="<?php echo e($fFrom); ?>" class="layui-input" style="width:150px">
-        <input type="date" name="to" value="<?php echo e($fTo); ?>" class="layui-input" style="width:150px">
+        <?php // 日期范围选择：laydate 渲染（.cb-date-range 由 admin.js 统一接管），提交值仍走 from/to 隐藏域 ?>
+        <input type="hidden" name="from" id="logDateFrom" value="<?php echo e($fFrom); ?>">
+        <input type="hidden" name="to" id="logDateTo" value="<?php echo e($fTo); ?>">
+        <input type="text" class="layui-input cb-date-range" data-from="#logDateFrom" data-to="#logDateTo"
+               placeholder="开始日期 ~ 结束日期" autocomplete="off" style="width:230px"
+               value="<?php echo e($rangeText); ?>">
         <button class="layui-btn layui-btn-sm" type="submit"><i class="layui-icon layui-icon-search"></i> 筛选</button>
     </form>
     <?php

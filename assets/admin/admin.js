@@ -32,6 +32,12 @@
             icon.classList.remove('layui-icon-moon', 'layui-icon-light');
             icon.classList.add(enable ? 'layui-icon-light' : 'layui-icon-moon');
         }
+        // Vditor 编辑器联动（仅文章编辑页存在）：整体主题 + 预览内容主题同步切换
+        if (window.cbVditor && typeof window.cbVditor.setTheme === 'function') {
+            try {
+                window.cbVditor.setTheme(enable ? 'dark' : 'classic', enable ? 'dark' : 'light');
+            } catch (err) { /* 编辑器未就绪时静默，不影响明暗切换 */ }
+        }
     }
 
     function initDarkMode() {
@@ -89,13 +95,23 @@
         if (overlay) {
             overlay.addEventListener('click', closeSidebar);
         }
-        // 移动端点击导航链接后自动收起抽屉
+        // 移动端点击导航链接后自动收起抽屉；仅限真实跳转的链接——
+        // 组标题（href="javascript:;"）只展开二级菜单不跳转，收起会导致子菜单无法操作
         var links = side.querySelectorAll('a');
         for (var i = 0; i < links.length; i++) {
             links[i].addEventListener('click', function () {
-                if (window.innerWidth <= SIDE_BREAKPOINT) {
-                    closeSidebar();
+                if (window.innerWidth > SIDE_BREAKPOINT) {
+                    return;
                 }
+                var href = this.getAttribute('href') || '';
+                if (href === '' || href === '#' || href.indexOf('javascript:') === 0) {
+                    return;
+                }
+                // 新窗口打开的链接不影响当前页面抽屉状态
+                if (this.getAttribute('target') === '_blank') {
+                    return;
+                }
+                closeSidebar();
             });
         }
     }
@@ -140,6 +156,40 @@
         });
     }
 
+    /** 通用 laydate 日期范围选择：.cb-date-range 可见框选定后经 data-from/data-to
+        拆回隐藏域提交（后端仍收独立 from/to 参数）；无 JS 时隐藏域保持原值不受影响 */
+    function initDateRanges(laydate) {
+        if (!laydate) {
+            return;
+        }
+        var elems = document.querySelectorAll('.cb-date-range');
+        Array.prototype.forEach.call(elems, function (el) {
+            var fromSel = el.getAttribute('data-from');
+            var toSel = el.getAttribute('data-to');
+            laydate.render({
+                elem: el,
+                type: 'date',
+                format: 'yyyy-MM-dd',
+                range: '~',
+                done: function (value) {
+                    var fromEl = fromSel ? document.querySelector(fromSel) : null;
+                    var toEl = toSel ? document.querySelector(toSel) : null;
+                    if (!fromEl || !toEl) {
+                        return;
+                    }
+                    if (!value) {
+                        fromEl.value = '';
+                        toEl.value = '';
+                        return;
+                    }
+                    var parts = value.split('~');
+                    fromEl.value = (parts[0] || '').replace(/^\s+|\s+$/g, '');
+                    toEl.value = (parts[1] || '').replace(/^\s+|\s+$/g, '');
+                }
+            });
+        });
+    }
+
     /** layui 模块初始化：导航/下拉/开关渲染 + 弹层交互 */
     function initLayui() {
         if (!window.layui || !layui.use) {
@@ -147,10 +197,11 @@
             initConfirmForms(null);
             return;
         }
-        layui.use(['element', 'form', 'layer'], function () {
+        layui.use(['element', 'form', 'layer', 'laydate'], function () {
             var layer = layui.layer;
             initConfirmForms(layer);
             initFlashToast(layer);
+            initDateRanges(layui.laydate);
             // element 模块渲染导航树/选项卡/折叠面板；部分版本自动初始化，此处显式兜底
             if (layui.element && layui.element.render) {
                 layui.element.render();
