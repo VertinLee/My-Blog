@@ -98,6 +98,8 @@ Description: 主题描述（后台列表展示，截断 40 字）
 `excerpt`、`cover`、`views`、`created_at`、`is_top`（置顶标记，非 0 时默认主题
 在列表标题前展示「置顶」徽标）、`author`（`username`/`nickname`/`avatar`）。
 文章正文必须经 `render_content($post['content'])` 输出（Markdown 解析 + 白名单 XSS 过滤）。
+`cover` 存 `uploads/...` 相对路径，主题渲染需用 `Router::base() . '/' . $post['cover']`
+拼接（空值表示无封面，按需判断）。
 
 ## 4. 模板 API（`core/Theme.php`）
 

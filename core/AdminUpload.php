@@ -22,8 +22,10 @@ class AdminUpload
         Auth::require_cap('upload');
         $relative = self::saveImage(2 * 1024 * 1024, '图片大小须在 2MB 以内');
         blog_log('post', 'upload.image', 'success', array('path' => $relative));
+        // 同时返回相对路径：文章封面表单只接受 uploads/ 开头的相对路径（与头像接口一致）
         json_out(array('code' => 0, 'msg' => 'ok', 'data' => array(
-            'url' => Router::base() . '/' . $relative,
+            'url'  => Router::base() . '/' . $relative,
+            'path' => $relative,
         )));
     }
 
@@ -71,10 +73,13 @@ class AdminUpload
         if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true)) {
             json_out(array('code' => 1, 'msg' => '上传目录创建失败'));
         }
-        $name = random_string(16) . '.' . self::$mimeMap[$mime];
-        if (!move_uploaded_file($file['tmp_name'], $targetDir . '/' . $name)) {
-            json_out(array('code' => 1, 'msg' => '文件保存失败'));
+        // 用文件内容 md5 命名：内容相同的图片得到相同文件名，命中已存在文件则跳过落盘（秒传去重）
+        $dest = $targetDir . '/' . md5_file($file['tmp_name']) . '.' . self::$mimeMap[$mime];
+        if (!is_file($dest)) {
+            if (!move_uploaded_file($file['tmp_name'], $dest)) {
+                json_out(array('code' => 1, 'msg' => '文件保存失败'));
+            }
         }
-        return 'uploads/' . $subDir . '/' . $name;
+        return 'uploads/' . $subDir . '/' . basename($dest);
     }
 }

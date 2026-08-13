@@ -113,7 +113,7 @@
 | content | MEDIUMTEXT | Markdown 原文 |
 | excerpt | TEXT | 摘要，空则自动截取 |
 | category_id | INT UNSIGNED | |
-| cover | VARCHAR(255) | 封面图 |
+| cover | VARCHAR(255) | 封面图，存 `uploads/...` 相对路径 |
 | status | ENUM('draft','pending','published','trash') | 文章审核开关见 §0.3 |
 | views | INT UNSIGNED DEFAULT 0 | |
 | created_at / updated_at | DATETIME | |
