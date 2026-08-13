@@ -99,9 +99,13 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
     </div>
 
     <div class="layui-form-item">
-        <label class="v-label">封面图路径（可选，可用右侧上传按钮获取路径）</label>
-        <div class="filter-bar">
-            <input type="text" name="cover" id="coverPath" value="<?php echo $post ? e($post['cover']) : ''; ?>" class="layui-input" style="width:320px">
+        <label class="v-label">封面图（仅可通过上传更换，支持 jpg/png/webp/gif，不超过 2MB）</label>
+        <div class="filter-bar" style="align-items:center">
+            <img src="<?php echo ($post && $post['cover'] !== '') ? e(Router::base() . '/' . $post['cover']) : ''; ?>"
+                 id="coverPreview" alt="封面预览"
+                 style="display:<?php echo ($post && $post['cover'] !== '') ? 'inline-block' : 'none'; ?>;width:120px;height:80px;border-radius:4px;object-fit:cover">
+            <?php // 封面路径为隐藏域：只接受上传接口回写的值，不提供手动填写入口 ?>
+            <input type="hidden" name="cover" id="coverPath" value="<?php echo $post ? e($post['cover']) : ''; ?>">
             <?php if (Auth::check_cap('upload')): ?>
             <input type="file" id="coverFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
             <button type="button" class="layui-btn layui-btn-primary" id="coverUploadBtn">
@@ -217,7 +221,11 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
                 try {
                     var resp = JSON.parse(xhr.responseText);
                     if (resp.code === 0) {
-                        document.getElementById('coverPath').value = resp.data.url;
+                        // 表单项只存 uploads/ 相对路径，预览用完整 URL
+                        document.getElementById('coverPath').value = resp.data.path;
+                        var preview = document.getElementById('coverPreview');
+                        preview.src = resp.data.url;
+                        preview.style.display = 'inline-block';
                         feedback('封面上传成功', true);
                     } else {
                         feedback(resp.msg || '上传失败', false);
