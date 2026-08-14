@@ -99,9 +99,10 @@ class AdminLog
         fputcsv($out, array('ID', '时间', '用户ID', '角色', '类别', '动作', '结果', 'IP', 'UA', '详情'));
         foreach ($logs as $log) {
             fputcsv($out, array(
-                $log['id'], $log['created_at'], $log['user_id'], $log['role'],
-                $log['category'], $log['action'], $log['result'], $log['ip'], $log['ua'],
-                $log['detail'],
+                csv_safe($log['id']), csv_safe($log['created_at']), csv_safe($log['user_id']),
+                csv_safe($log['role']), csv_safe($log['category']), csv_safe($log['action']),
+                csv_safe($log['result']), csv_safe($log['ip']), csv_safe($log['ua']),
+                csv_safe($log['detail']),
             ));
         }
         fclose($out);

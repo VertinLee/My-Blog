@@ -193,7 +193,10 @@ class Auth
 
         if (!$user) {
             blog_log('auth', 'login.fail', 'fail', array('account' => $account, 'reason' => 'not_found'));
-            return array('ok' => false, 'msg' => '账号或密码错误');
+            // 影子锁定：对不存在的账号名同样按失败次数锁定并返回相同话术，
+            // 使"第 5 次显示锁定提示"不再构成账号存在性预言机（计数存 options，不建表）
+            $msg = self::shadowLock($account);
+            return array('ok' => false, 'msg' => $msg);
         }
 
         // 锁定期检查：与密码错误统一提示，防止探测账号是否存在及其状态（原因仅入审计日志）
@@ -221,17 +224,27 @@ class Auth
 
         if (!password_verify($password, $user['password'])) {
             $maxFail = max(1, (int) Option::get('login_max_fail', 5));
-            $fail = (int) $user['login_fail'] + 1;
-            $update = array('login_fail' => $fail);
+            // 原子自增计数（LAST_INSERT_ID 表达式）：并发失败请求不会互相覆盖计数，
+            // 否则攻击者以并发爆破可令计数长期低于阈值、绕过锁定
+            $fail = DB::query('users')->where('id', '=', (int) $user['id'])->increment('login_fail');
+            if ($fail === false) {
+                // 极端情况（行被并发删除）：按已达上限处理，宁锁勿放
+                return array('ok' => false, 'msg' => '账号或密码错误');
+            }
             $msg = '账号或密码错误';
             if ($fail >= $maxFail) {
                 $lockMinutes = max(1, (int) Option::get('login_lock_minutes', 10));
-                $update['locked_until'] = date('Y-m-d H:i:s', time() + $lockMinutes * 60);
-                $update['login_fail'] = 0;
+                // 条件更新置锁定态：仅当计数仍达阈值时写入，避免与并发成功登录清零竞争
+                DB::query('users')
+                    ->where('id', '=', (int) $user['id'])
+                    ->where('login_fail', '>=', $maxFail)
+                    ->update(array(
+                        'locked_until' => date('Y-m-d H:i:s', time() + $lockMinutes * 60),
+                        'login_fail'   => 0,
+                    ));
                 $msg = '连续失败次数过多，账号已锁定 ' . $lockMinutes . ' 分钟';
                 blog_log('auth', 'user.locked', 'success', array('user_id' => (int) $user['id']));
             }
-            DB::update('users', $update, array('id' => (int) $user['id']));
             blog_log('auth', 'login.fail', 'fail', array('user_id' => (int) $user['id'], 'fail_count' => $fail));
             return array('ok' => false, 'msg' => $msg);
         }
@@ -253,6 +266,41 @@ class Auth
         }
 
         return array('ok' => true, 'msg' => '登录成功');
+    }
+
+    /**
+     * 不存在账号的影子锁定：与真实账号锁定共用阈值/时长/话术，
+     * 消除"锁定提示仅出现在存在账号上"的枚举侧信道；
+     * 计数存 options（键 loginlock_{账号名散列}），窗口外自动清零，由 ip_throttle_purge 定期清理
+     *
+     * @param string $account 登录账号名（用户名或邮箱原文）
+     * @return string 统一提示语
+     */
+    private static function shadowLock($account)
+    {
+        $maxFail = max(1, (int) Option::get('login_max_fail', 5));
+        $lockMinutes = max(1, (int) Option::get('login_lock_minutes', 10));
+        $key = 'loginlock_' . md5(mb_strtolower($account, 'UTF-8'));
+        $now = time();
+        $parts = explode('|', (string) Option::get($key, ''));
+        $start = isset($parts[0]) && $parts[0] !== '' ? (int) $parts[0] : 0;
+        $count = isset($parts[1]) ? (int) $parts[1] : 0;
+        // 锁定期内直接返回锁定话术（与真实账号一致）
+        if ($start > 0 && $start > $now - $lockMinutes * 60 && $count >= $maxFail) {
+            return '连续失败次数过多，账号已锁定 ' . $lockMinutes . ' 分钟';
+        }
+        // 窗口重置（锁定过期或新窗口）
+        if ($start === 0 || $now - $start >= $lockMinutes * 60) {
+            $start = $now;
+            $count = 0;
+        }
+        $count++;
+        Option::set($key, $start . '|' . $count);
+        if ($count >= $maxFail) {
+            blog_log('auth', 'user.locked', 'success', array('account' => $account, 'shadow' => true));
+            return '连续失败次数过多，账号已锁定 ' . $lockMinutes . ' 分钟';
+        }
+        return '账号或密码错误';
     }
 
     /**

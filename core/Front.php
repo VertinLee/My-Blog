@@ -437,6 +437,20 @@ class Front
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Csrf::verifyOrDie();
+            // 注册提交限流：注册接口的"用户名/邮箱/手机号已占用"提示可被用于批量枚举，
+            // 以 IP 维度限速抬高枚举成本（60s 窗口内超过 10 次即拒绝）
+            if (!ip_throttle_allow('register', 10)) {
+                $error = '操作过于频繁，请稍后再试';
+                Theme::render('register', array(
+                    'page_type'    => 'register',
+                    'title'        => '注册',
+                    'error'        => $error,
+                    'old'          => $old,
+                    'emailEnabled' => $emailEnabled,
+                    'smsEnabled'   => $smsEnabled,
+                ));
+                return;
+            }
             $username = input_text('username', '', 32, 'post');
             $nickname = input_text('nickname', '', 64, 'post');
             $email = input_email('email', '', 'post');
@@ -567,6 +581,17 @@ class Front
             $newPassword2 = isset($_POST['new_password2']) ? (string) $_POST['new_password2'] : '';
 
             do {
+                // 与账号存在性无关的格式校验先行：避免"存在账号才走到的分支"
+                // 形成存在性预言机（枚举用户名）
+                if ($newPassword !== $newPassword2) {
+                    $error = '两次输入的新密码不一致';
+                    break;
+                }
+                if ($account === '') {
+                    // 统一话术：不区分"未填账号"与"账号不存在"
+                    $error = '若账号存在且信息正确，密码将被重置';
+                    break;
+                }
                 if (!$user) {
                     // 不暴露账号是否存在，统一提示
                     $error = '若账号存在且信息正确，密码将被重置';
@@ -574,22 +599,20 @@ class Front
                 }
                 $target = strpos($account, '@') !== false ? $user['email'] : (!empty($user['phone']) ? $user['phone'] : $user['email']);
                 $channel = strpos($account, '@') !== false ? 'email' : (!empty($user['phone']) && $smsEnabled ? 'sms' : 'email');
-                if (empty($target)) {
-                    $error = '该账号未绑定邮箱或手机，请联系管理员';
-                    break;
-                }
-                if ($newPassword !== $newPassword2) {
-                    $error = '两次输入的新密码不一致';
-                    break;
-                }
                 $pwdErr = Auth::validate_password_strength($newPassword, $user['username']);
                 if ($pwdErr !== '') {
                     $error = $pwdErr;
                     break;
                 }
+                if (empty($target)) {
+                    // 统一话术：未绑定联系方式也按"账号可能不存在"处理，防止枚举
+                    $error = '若账号存在且信息正确，密码将被重置';
+                    break;
+                }
                 // 原子消费验证码：核验与标记已用在同一条件更新中完成，无并发复用窗口
                 if (!self::consumeVerifyCode('reset', $target, $code, $channel)) {
-                    $error = '验证码错误或已过期';
+                    // 统一话术：验证码错误不暴露"该账号确实存在"（验证码仅真实账号能收到）
+                    $error = '若账号存在且信息正确，密码将被重置';
                     break;
                 }
                 $result = Auth::changePassword((int) $user['id'], null, $newPassword);
@@ -872,6 +895,13 @@ class Front
             json_out(array('code' => 1, 'msg' => '该渠道未启用验证码插件'));
         }
 
+        // 按目标加命名锁：60s 间隔/每日上限/实际发送必须互斥完成，
+        // 否则并发请求同时通过 count()==0 检查会超限群发（TOCTOU）
+        $lockName = 'vsend_' . md5($channel . '|' . $target);
+        if (!DB::lock($lockName, 5)) {
+            json_out(array('code' => 1, 'msg' => '操作过于频繁，请稍后再试'));
+        }
+
         // 频率限制：60s 重发间隔
         $recent = DB::query('verify_codes')
             ->where('scene', '=', $scene)
@@ -879,6 +909,7 @@ class Front
             ->where('created_at', '>', date('Y-m-d H:i:s', time() - 60))
             ->count();
         if ($recent > 0) {
+            DB::unlock($lockName);
             json_out(array('code' => 1, 'msg' => '发送过于频繁，请 60 秒后重试'));
         }
         // 每日上限：同目标每日 ≤10 条
@@ -887,11 +918,19 @@ class Front
             ->where('created_at', '>', date('Y-m-d 00:00:00'))
             ->count();
         if ($today >= 10) {
+            DB::unlock($lockName);
             json_out(array('code' => 1, 'msg' => '今日发送次数已达上限'));
         }
 
         $code = (string) random_int(100000, 999999);
-        $handled = apply_filters('send_verify_code', false, $scene, $target, $channel, $code);
+        try {
+            $handled = apply_filters('send_verify_code', false, $scene, $target, $channel, $code);
+        } catch (Exception $ex) {
+            $handled = false;
+        }
+        // 发送裁决完成即释放锁：插件落库验证码在过滤器内完成，锁保护的是
+        // "检查配额→插件写入"这一临界区，发送结果不再依赖持锁
+        DB::unlock($lockName);
         if ($handled === true) {
             // 验证码发送必须留痕（等保审计；target 由 Logger 自动脱敏）
             blog_log('verify', 'verify.send', 'success', array(

@@ -150,6 +150,41 @@ class DB
             throw new RuntimeException('audit log is append-only, ' . $op . ' forbidden');
         }
     }
+
+    /**
+     * MySQL 命名锁（GET_LOCK）：用于跨请求互斥的读-改-写场景（限流计数、发送配额），
+     * 锁名自动加表前缀避免多站共库互串；调用方必须以 db_lock_release 或 try/finally 配对释放
+     *
+     * @param string $name 逻辑锁名（仅字母数字与短横线）
+     * @param int    $timeoutSeconds 获取等待秒数，0 为立即返回
+     * @return bool 是否取得锁
+     */
+    public static function lock($name, $timeoutSeconds = 0)
+    {
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $name)) {
+            return false;
+        }
+        $stmt = self::$pdo->prepare('SELECT GET_LOCK(?, ?)');
+        $stmt->execute(array(self::$prefix . $name, max(0, (int) $timeoutSeconds)));
+        $row = $stmt->fetch();
+        return $row !== false && (int) $row[0] === 1;
+    }
+
+    /**
+     * 释放命名锁（未持锁时静默；连接断开锁亦自动释放）
+     *
+     * @param string $name 逻辑锁名
+     * @return void
+     */
+    public static function unlock($name)
+    {
+        if (!preg_match('/^[A-Za-z0-9_-]{1,64}$/', $name)) {
+            return;
+        }
+        $stmt = self::$pdo->prepare('SELECT RELEASE_LOCK(?)');
+        $stmt->execute(array(self::$prefix . $name));
+        $stmt->fetch();
+    }
 }
 
 /**
@@ -381,6 +416,23 @@ class DB_Query
         $stmt = DB::pdo()->prepare($sql);
         $stmt->execute($params);
         return $stmt->rowCount();
+    }
+
+    /** 按已设条件原子自增/自减并返回自增后的精确值（LAST_INSERT_ID 表达式，并发不丢计数） */
+    public function increment($col, $delta = 1)
+    {
+        $delta = (int) $delta;
+        $colIdent = self::checkIdent($col);
+        // LAST_INSERT_ID(expr) 把表达式值写入连接级 LAST_INSERT_ID，随后 lastInsertId() 取回，
+        // 避免"读取-计算-写回"在并发请求下互相覆盖（登录失败计数等安全计数器依赖此语义）
+        $sql = 'UPDATE `' . $this->table . '` SET `' . $colIdent . '` = LAST_INSERT_ID(`'
+            . $colIdent . '` + (' . $delta . '))' . $this->buildWhere();
+        $stmt = DB::pdo()->prepare($sql);
+        $stmt->execute($this->params);
+        if ($stmt->rowCount() < 1) {
+            return false;
+        }
+        return (int) DB::pdo()->lastInsertId();
     }
 
     /** 按已设条件删除 */

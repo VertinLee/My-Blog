@@ -51,13 +51,12 @@ set_exception_handler('app_exception_handler');
 
 // 未安装（config.php 不存在）时跳转安装程序；安装程序自身不加载本引导
 if (!Config::load(APP_ROOT . '/config.php')) {
-    $installUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://'
-        . (isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost');
     $dir = str_replace('\\', '/', dirname(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '/'));
     // 从 user/、install/ 子目录入口进入时回退到站点根，避免拼出 /user/install/ 错误路径
     $dir = preg_replace('#/(user|install)$#', '', $dir);
     $base = ($dir === '/' || $dir === '.') ? '' : rtrim($dir, '/');
-    header('Location: ' . $installUrl . $base . '/install/');
+    // 相对路径 Location：不拼接 HTTP_HOST（Host 头可伪造，拼绝对地址会形成开放重定向）
+    header('Location: ' . $base . '/install/');
     exit;
 }
 

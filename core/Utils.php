@@ -295,6 +295,22 @@ function mask_phone($phone)
 }
 
 /**
+ * CSV 单元格公式注入中和：以 = + - @ 或 TAB/CR 开头的值前置单引号，
+ * 防止导出的 CSV 在 Excel/WPS 中被当作公式执行（DDE/HYPERLINK 外泄）
+ *
+ * @param string $value 原始单元格值
+ * @return string
+ */
+function csv_safe($value)
+{
+    $value = (string) $value;
+    if ($value !== '' && strpbrk(substr($value, 0, 1), '=+-@' . "\t\r") !== false) {
+        return "'" . $value;
+    }
+    return $value;
+}
+
+/**
  * 随机字符串（字母数字）
  *
  * @param int $len 长度
@@ -391,9 +407,32 @@ function flash_pull()
 }
 
 /**
+ * 限流计数器键中的客户端 IP 归一化：
+ * IPv4 原样使用；IPv6 折叠为 /64 前缀（同一运营商分配块），
+ * 防止客户端在 /64 内轮换源地址使每个请求命中全新计数器桶、绕过限流
+ *
+ * @param string $ip 已验证的客户端 IP
+ * @return string
+ */
+function throttle_ip_key($ip)
+{
+    // 先验合法性再转换（inet_pton 对非法输入会告警，不做错误抑制）
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+        return $ip;
+    }
+    $packed = inet_pton($ip);
+    if ($packed === false) {
+        return $ip;
+    }
+    // IPv6：取前 8 字节（/64），后 8 字节清零
+    return inet_ntop(substr($packed, 0, 8) . str_repeat("\x00", 8));
+}
+
+/**
  * IP 维度分钟窗口限流：options 表独立计数器，不依赖审计表聚合。
  * 计数器键含客户端 IP 散列，被限流的请求由调用方自行决定是否写审计，
- * 避免攻击者以高频请求向只增不改的审计表持续灌数据
+ * 避免攻击者以高频请求向只增不改的审计表持续灌数据。
+ * 读-改-写经 MySQL 命名锁互斥，并发请求不会因竞态少计而超放
  *
  * @param string $bucket       业务桶名（login/verify_send 等）
  * @param int    $maxPerMinute 同一 IP 每分钟上限
@@ -401,18 +440,26 @@ function flash_pull()
  */
 function ip_throttle_allow($bucket, $maxPerMinute)
 {
-    $key = 'throttle_' . $bucket . '_' . md5(client_ip());
+    $key = 'throttle_' . $bucket . '_' . md5(throttle_ip_key(client_ip()));
     $now = time();
-    $parts = explode('|', (string) Option::get($key, ''));
-    $start = isset($parts[0]) && $parts[0] !== '' ? (int) $parts[0] : 0;
-    $count = isset($parts[1]) ? (int) $parts[1] : 0;
-    if ($now - $start >= 60) {
-        $start = $now;
-        $count = 0;
+    if (!DB::lock('throttle')) {
+        // 取锁失败按超限处理（fail-closed），不能因锁不可用放开限流
+        return false;
     }
-    $count++;
-    Option::set($key, $start . '|' . $count);
-    return $count <= $maxPerMinute;
+    try {
+        $parts = explode('|', (string) Option::get($key, ''));
+        $start = isset($parts[0]) && $parts[0] !== '' ? (int) $parts[0] : 0;
+        $count = isset($parts[1]) ? (int) $parts[1] : 0;
+        if ($now - $start >= 60) {
+            $start = $now;
+            $count = 0;
+        }
+        $count++;
+        Option::set($key, $start . '|' . $count);
+        return $count <= $maxPerMinute;
+    } finally {
+        DB::unlock('throttle');
+    }
 }
 
 /**
@@ -429,10 +476,15 @@ function ip_throttle_purge()
     }
     Option::set('throttle_last_purge', time());
     try {
-        // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 throttle_ 前缀
+        // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 throttle_ 前缀；
+        // loginlock_ 为不存在账号的影子锁定计数器，同批清理
         $rows = DB::query('options')
             ->where('option_key', 'LIKE', 'throttle\_%')
             ->select(array('option_key', 'option_value'));
+        $lockRows = DB::query('options')
+            ->where('option_key', 'LIKE', 'loginlock\_%')
+            ->select(array('option_key', 'option_value'));
+        $rows = array_merge($rows, $lockRows);
         foreach ($rows as $row) {
             if ($row['option_key'] === 'throttle_last_purge') {
                 continue;
