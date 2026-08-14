@@ -424,7 +424,12 @@ function throttle_ip_key($ip)
     if ($packed === false) {
         return $ip;
     }
-    // IPv6：取前 8 字节（/64），后 8 字节清零
+    // IPv4-mapped IPv6（::ffff:a.b.c.d，双栈监听下 REMOTE_ADDR 的常见形态）：
+    // 内嵌的是 IPv4，按其自身归一（否则全部折叠成 :: 单桶，全站 IPv4 访客共限）
+    if (substr($packed, 0, 12) === "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff") {
+        return inet_ntop(substr($packed, 12));
+    }
+    // 普通 IPv6：取前 8 字节（/64），后 8 字节清零
     return inet_ntop(substr($packed, 0, 8) . str_repeat("\x00", 8));
 }
 
@@ -442,8 +447,9 @@ function ip_throttle_allow($bucket, $maxPerMinute)
 {
     $key = 'throttle_' . $bucket . '_' . md5(throttle_ip_key(client_ip()));
     $now = time();
-    if (!DB::lock('throttle')) {
-        // 取锁失败按超限处理（fail-closed），不能因锁不可用放开限流
+    // 3 秒等待：临界区仅一次 options 读写（毫秒级），零超时会把双击提交等
+    // 轻微并发误判为限流；等待超时仍取不到才按超限处理（fail-closed）
+    if (!DB::lock('throttle', 3)) {
         return false;
     }
     try {
@@ -476,20 +482,17 @@ function ip_throttle_purge()
     }
     Option::set('throttle_last_purge', time());
     try {
-        // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 throttle_ 前缀；
-        // loginlock_ 为不存在账号的影子锁定计数器，同批清理
+        // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 throttle_ 前缀
         $rows = DB::query('options')
             ->where('option_key', 'LIKE', 'throttle\_%')
             ->select(array('option_key', 'option_value'));
-        $lockRows = DB::query('options')
-            ->where('option_key', 'LIKE', 'loginlock\_%')
-            ->select(array('option_key', 'option_value'));
-        $rows = array_merge($rows, $lockRows);
         foreach ($rows as $row) {
             if ($row['option_key'] === 'throttle_last_purge') {
                 continue;
             }
             $parts = explode('|', (string) $row['option_value']);
+            // 格式为 start|count（窗口起点|计数）：start 是判龄时间戳，
+            // 活跃窗口（<1h）保留，过期窗口删除
             $start = isset($parts[0]) ? (int) $parts[0] : 0;
             if ($start > 0 && $start < time() - 3600) {
                 DB::delete('options', array('option_key' => $row['option_key']));

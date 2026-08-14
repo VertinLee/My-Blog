@@ -193,10 +193,11 @@ class Auth
 
         if (!$user) {
             blog_log('auth', 'login.fail', 'fail', array('account' => $account, 'reason' => 'not_found'));
-            // 影子锁定：对不存在的账号名同样按失败次数锁定并返回相同话术，
-            // 使"第 5 次显示锁定提示"不再构成账号存在性预言机（计数存 options，不建表）
-            $msg = self::shadowLock($account);
-            return array('ok' => false, 'msg' => $msg);
+            // 设计妥协（当前版本）：不存在账号直接返回统一模糊话术，不做影子锁定。
+            // 代价是攻击者对同一名字连续失败 5 次后可凭"第 5 次提示差异"探测账号存在性；
+            // 影子锁定方案因每个被喷洒的用户名都会在 options 表 mint 计数行
+            // （喷洒场景下无界增长且 Option::all() 每请求全表加载）被否决，待更优方案再引入
+            return array('ok' => false, 'msg' => '账号或密码错误');
         }
 
         // 锁定期检查：与密码错误统一提示，防止探测账号是否存在及其状态（原因仅入审计日志）
@@ -266,41 +267,6 @@ class Auth
         }
 
         return array('ok' => true, 'msg' => '登录成功');
-    }
-
-    /**
-     * 不存在账号的影子锁定：与真实账号锁定共用阈值/时长/话术，
-     * 消除"锁定提示仅出现在存在账号上"的枚举侧信道；
-     * 计数存 options（键 loginlock_{账号名散列}），窗口外自动清零，由 ip_throttle_purge 定期清理
-     *
-     * @param string $account 登录账号名（用户名或邮箱原文）
-     * @return string 统一提示语
-     */
-    private static function shadowLock($account)
-    {
-        $maxFail = max(1, (int) Option::get('login_max_fail', 5));
-        $lockMinutes = max(1, (int) Option::get('login_lock_minutes', 10));
-        $key = 'loginlock_' . md5(mb_strtolower($account, 'UTF-8'));
-        $now = time();
-        $parts = explode('|', (string) Option::get($key, ''));
-        $start = isset($parts[0]) && $parts[0] !== '' ? (int) $parts[0] : 0;
-        $count = isset($parts[1]) ? (int) $parts[1] : 0;
-        // 锁定期内直接返回锁定话术（与真实账号一致）
-        if ($start > 0 && $start > $now - $lockMinutes * 60 && $count >= $maxFail) {
-            return '连续失败次数过多，账号已锁定 ' . $lockMinutes . ' 分钟';
-        }
-        // 窗口重置（锁定过期或新窗口）
-        if ($start === 0 || $now - $start >= $lockMinutes * 60) {
-            $start = $now;
-            $count = 0;
-        }
-        $count++;
-        Option::set($key, $start . '|' . $count);
-        if ($count >= $maxFail) {
-            blog_log('auth', 'user.locked', 'success', array('account' => $account, 'shadow' => true));
-            return '连续失败次数过多，账号已锁定 ' . $lockMinutes . ' 分钟';
-        }
-        return '账号或密码错误';
     }
 
     /**

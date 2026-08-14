@@ -582,14 +582,22 @@ class Front
 
             do {
                 // 与账号存在性无关的格式校验先行：避免"存在账号才走到的分支"
-                // 形成存在性预言机（枚举用户名）
+                // 形成存在性预言机（枚举用户名）。
+                // 强度校验的 username 参数以提交的 account 等效代入：
+                // 该检查仅用于"密码不得包含用户名"，而提交者本身知晓账号名，
+                // 用请求中的账号名判定不泄露任何额外信息
                 if ($newPassword !== $newPassword2) {
                     $error = '两次输入的新密码不一致';
                     break;
                 }
-                if ($account === '') {
+                if ($account === '' || $newPassword === '') {
                     // 统一话术：不区分"未填账号"与"账号不存在"
                     $error = '若账号存在且信息正确，密码将被重置';
+                    break;
+                }
+                $pwdErr = Auth::validate_password_strength($newPassword, $account);
+                if ($pwdErr !== '') {
+                    $error = $pwdErr;
                     break;
                 }
                 if (!$user) {
@@ -597,12 +605,18 @@ class Front
                     $error = '若账号存在且信息正确，密码将被重置';
                     break;
                 }
-                $target = strpos($account, '@') !== false ? $user['email'] : (!empty($user['phone']) ? $user['phone'] : $user['email']);
-                $channel = strpos($account, '@') !== false ? 'email' : (!empty($user['phone']) && $smsEnabled ? 'sms' : 'email');
-                $pwdErr = Auth::validate_password_strength($newPassword, $user['username']);
-                if ($pwdErr !== '') {
-                    $error = $pwdErr;
-                    break;
+                // target/channel 解析必须与 verifySend 的发送侧完全一致：
+                // 用户名账号在"有手机号但短信插件未启用"时，发送侧走邮箱，
+                // 核验侧若按手机号查询将永远无法匹配（找回密码功能性损坏）
+                if (strpos($account, '@') !== false) {
+                    $target = $user['email'];
+                    $channel = 'email';
+                } elseif (!empty($user['phone']) && $smsEnabled) {
+                    $target = $user['phone'];
+                    $channel = 'sms';
+                } else {
+                    $target = $user['email'];
+                    $channel = 'email';
                 }
                 if (empty($target)) {
                     // 统一话术：未绑定联系方式也按"账号可能不存在"处理，防止枚举
@@ -922,10 +936,11 @@ class Front
             json_out(array('code' => 1, 'msg' => '今日发送次数已达上限'));
         }
 
-        $code = (string) random_int(100000, 999999);
         try {
+            $code = (string) random_int(100000, 999999);
             $handled = apply_filters('send_verify_code', false, $scene, $target, $channel, $code);
-        } catch (Exception $ex) {
+        } catch (Throwable $t) {
+            // 捕 Throwable 而非 Exception：插件抛 Error/TypeError 同样必须走到解锁
             $handled = false;
         }
         // 发送裁决完成即释放锁：插件落库验证码在过滤器内完成，锁保护的是

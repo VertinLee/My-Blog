@@ -419,7 +419,11 @@ class DB_Query
         return $stmt->rowCount();
     }
 
-    /** 按已设条件原子自增/自减并返回自增后的精确值（LAST_INSERT_ID 表达式，并发不丢计数） */
+    /**
+     * 按已设条件原子自增/自减并返回自增后的精确值（LAST_INSERT_ID 表达式，并发不丢计数）
+     * 注意：仅适用于单调递增（delta>0）的安全计数场景——值未变化的 UPDATE rowCount=0
+     * 且 lastInsertId() 会残留上一次会话值，禁止用于 delta<=0 或可能持平的计数
+     */
     public function increment($col, $delta = 1)
     {
         $delta = (int) $delta;
