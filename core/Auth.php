@@ -193,6 +193,10 @@ class Auth
 
         if (!$user) {
             blog_log('auth', 'login.fail', 'fail', array('account' => $account, 'reason' => 'not_found'));
+            // 设计妥协（当前版本）：不存在账号直接返回统一模糊话术，不做影子锁定。
+            // 代价是攻击者对同一名字连续失败 5 次后可凭"第 5 次提示差异"探测账号存在性；
+            // 影子锁定方案因每个被喷洒的用户名都会在 options 表 mint 计数行
+            // （喷洒场景下无界增长且 Option::all() 每请求全表加载）被否决，待更优方案再引入
             return array('ok' => false, 'msg' => '账号或密码错误');
         }
 
@@ -221,17 +225,27 @@ class Auth
 
         if (!password_verify($password, $user['password'])) {
             $maxFail = max(1, (int) Option::get('login_max_fail', 5));
-            $fail = (int) $user['login_fail'] + 1;
-            $update = array('login_fail' => $fail);
+            // 原子自增计数（LAST_INSERT_ID 表达式）：并发失败请求不会互相覆盖计数，
+            // 否则攻击者以并发爆破可令计数长期低于阈值、绕过锁定
+            $fail = DB::query('users')->where('id', '=', (int) $user['id'])->increment('login_fail');
+            if ($fail === false) {
+                // 极端情况（行被并发删除）：按已达上限处理，宁锁勿放
+                return array('ok' => false, 'msg' => '账号或密码错误');
+            }
             $msg = '账号或密码错误';
             if ($fail >= $maxFail) {
                 $lockMinutes = max(1, (int) Option::get('login_lock_minutes', 10));
-                $update['locked_until'] = date('Y-m-d H:i:s', time() + $lockMinutes * 60);
-                $update['login_fail'] = 0;
+                // 条件更新置锁定态：仅当计数仍达阈值时写入，避免与并发成功登录清零竞争
+                DB::query('users')
+                    ->where('id', '=', (int) $user['id'])
+                    ->where('login_fail', '>=', $maxFail)
+                    ->update(array(
+                        'locked_until' => date('Y-m-d H:i:s', time() + $lockMinutes * 60),
+                        'login_fail'   => 0,
+                    ));
                 $msg = '连续失败次数过多，账号已锁定 ' . $lockMinutes . ' 分钟';
                 blog_log('auth', 'user.locked', 'success', array('user_id' => (int) $user['id']));
             }
-            DB::update('users', $update, array('id' => (int) $user['id']));
             blog_log('auth', 'login.fail', 'fail', array('user_id' => (int) $user['id'], 'fail_count' => $fail));
             return array('ok' => false, 'msg' => $msg);
         }
