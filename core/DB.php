@@ -166,8 +166,9 @@ class DB
         }
         $stmt = self::$pdo->prepare('SELECT GET_LOCK(?, ?)');
         $stmt->execute(array(self::$prefix . $name, max(0, (int) $timeoutSeconds)));
-        $row = $stmt->fetch();
-        return $row !== false && (int) $row[0] === 1;
+        // fetchColumn 与连接级默认 fetch 模式（ASSOC）无关，必须用它取标量结果
+        $value = $stmt->fetchColumn();
+        return $value !== false && (int) $value === 1;
     }
 
     /**
