@@ -25,7 +25,7 @@ class AdminProfile
         $email = input_email('email', '', 'post');
         $phone = input_phone('phone', '', 'post');
         $avatar = input_text('avatar', '', 255, 'post');
-        $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+        $password = input_password('password');
 
         // 头像仅允许站内 uploads/ 下的相对路径；拒绝 .. 防路径穿越
         if ($avatar !== ''
@@ -106,9 +106,9 @@ class AdminProfile
     public static function passwordSaveAction()
     {
         Auth::require_cap('edit_profile');
-        $oldPassword = isset($_POST['old_password']) ? (string) $_POST['old_password'] : '';
-        $newPassword = isset($_POST['new_password']) ? (string) $_POST['new_password'] : '';
-        $confirm = isset($_POST['confirm_password']) ? (string) $_POST['confirm_password'] : '';
+        $oldPassword = input_password('old_password');
+        $newPassword = input_password('new_password');
+        $confirm = input_password('confirm_password');
         $wasExpired = !empty($_SESSION['pwd_expired']);
 
         if ($newPassword !== $confirm) {

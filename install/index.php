@@ -26,6 +26,8 @@ if (is_file(__DIR__ . '/install.lock') || is_file(APP_ROOT . '/config.php')) {
 require __DIR__ . '/schema.php';
 require APP_ROOT . '/core/Hook.php';
 require APP_ROOT . '/core/Auth.php';
+// 统一输入校验器（input_* 为纯函数，不依赖 DB/Option，可在安装上下文安全使用）
+require APP_ROOT . '/core/Utils.php';
 
 /* ---------- 安装程序内部助手 ---------- */
 
@@ -47,8 +49,8 @@ function ins_csrf()
 /** 校验 CSRF，失败终止 */
 function ins_csrf_check()
 {
-    $token = isset($_POST['_csrf']) ? $_POST['_csrf'] : '';
-    if (!is_string($token) || !hash_equals(ins_csrf(), $token)) {
+    $token = input_text('_csrf', '', 128, 'post');
+    if ($token === '' || !hash_equals(ins_csrf(), $token)) {
         exit('CSRF 校验失败，请返回重试');
     }
 }
@@ -56,8 +58,7 @@ function ins_csrf_check()
 /** 当前步骤（1-4） */
 function ins_step()
 {
-    $step = isset($_GET['step']) ? (int) $_GET['step'] : 1;
-    return max(1, min(4, $step));
+    return max(1, min(4, input_int('step', 1, 'get')));
 }
 
 /** 安装程序基地址 */
@@ -97,11 +98,12 @@ function ins_env_check()
         'ok'   => $rootWritable,
         'info' => $rootWritable ? '可写' : '不可写',
     );
+    // is_dir 前置判断已避开"已存在"警告；真失败（权限等）由下方 is_writable 检查项呈现
     if (!is_dir(APP_ROOT . '/uploads')) {
-        @mkdir(APP_ROOT . '/uploads', 0755, true);
+        mkdir(APP_ROOT . '/uploads', 0755, true);
     }
     if (!is_dir(APP_ROOT . '/uploads/avatars')) {
-        @mkdir(APP_ROOT . '/uploads/avatars', 0755, true);
+        mkdir(APP_ROOT . '/uploads/avatars', 0755, true);
     }
     $uploadsWritable = is_writable(APP_ROOT . '/uploads');
     $items[] = array(
@@ -260,29 +262,32 @@ $messageType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ins_csrf_check();
-    $action = isset($_POST['action']) ? $_POST['action'] : '';
+    $action = input_enum('action', array('test_db', 'save_db', 'do_install'), '', 'post');
 
     // 测试数据库连接
     if ($action === 'test_db') {
         // 密码留空时沿用 Session 暂存值（页面不再回显明文密码）
         $prevDb = ins_db_config_from_session();
-        $passInput = (string) $_POST['pass'];
+        $dbHost = input_text('host', '', 255, 'post');
+        $dbPort = input_int('port', 3306, 'post');
+        $dbUser = input_text('user', '', 64, 'post');
+        $dbName = input_text('name', '', 64, 'post');
+        $dbPrefix = input_text('prefix', 'cb_', 32, 'post');
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $dbPrefix)) {
+            $dbPrefix = 'cb_';
+        }
+        $passInput = input_password('pass');
+        $passUse = $passInput !== '' ? $passInput : $prevDb['pass'];
         try {
-            $pdo = ins_pdo(
-                trim($_POST['host']),
-                trim($_POST['port']),
-                trim($_POST['user']),
-                $passInput !== '' ? $passInput : $prevDb['pass'],
-                trim($_POST['name'])
-            );
+            $pdo = ins_pdo($dbHost, $dbPort, $dbUser, $passUse, $dbName);
             $pdo->query('SELECT 1');
             $message = '数据库连接成功';
             $messageType = 'ok';
             $_SESSION['ins_db'] = array(
-                'host' => trim($_POST['host']), 'port' => trim($_POST['port']),
-                'user' => trim($_POST['user']), 'pass' => $passInput !== '' ? $passInput : $prevDb['pass'],
-                'name' => trim($_POST['name']),
-                'prefix' => preg_match('/^[A-Za-z0-9_]+$/', $_POST['prefix']) ? $_POST['prefix'] : 'cb_',
+                'host' => $dbHost, 'port' => (string) $dbPort,
+                'user' => $dbUser, 'pass' => $passUse,
+                'name' => $dbName,
+                'prefix' => $dbPrefix,
             );
         } catch (Exception $ex) {
             $message = '连接失败：' . $ex->getMessage();
@@ -293,17 +298,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 提交数据库配置
     if ($action === 'save_db') {
-        $prefix = isset($_POST['prefix']) && preg_match('/^[A-Za-z0-9_]+$/', $_POST['prefix']) ? $_POST['prefix'] : 'cb_';
+        $dbPrefix = input_text('prefix', 'cb_', 32, 'post');
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $dbPrefix)) {
+            $dbPrefix = 'cb_';
+        }
         $prevDb = ins_db_config_from_session();
-        $passInput = (string) $_POST['pass'];
+        $dbHost = input_text('host', '', 255, 'post');
+        $dbPort = input_int('port', 3306, 'post');
+        $dbUser = input_text('user', '', 64, 'post');
+        $dbName = input_text('name', '', 64, 'post');
+        $passInput = input_password('pass');
         $passUse = $passInput !== '' ? $passInput : $prevDb['pass'];
         try {
-            $pdo = ins_pdo(trim($_POST['host']), trim($_POST['port']), trim($_POST['user']), $passUse, trim($_POST['name']));
+            $pdo = ins_pdo($dbHost, $dbPort, $dbUser, $passUse, $dbName);
             $pdo->query('SELECT 1');
             $_SESSION['ins_db'] = array(
-                'host' => trim($_POST['host']), 'port' => trim($_POST['port']),
-                'user' => trim($_POST['user']), 'pass' => $passUse,
-                'name' => trim($_POST['name']), 'prefix' => $prefix,
+                'host' => $dbHost, 'port' => (string) $dbPort,
+                'user' => $dbUser, 'pass' => $passUse,
+                'name' => $dbName, 'prefix' => $dbPrefix,
             );
             header('Location: ' . ins_base() . '/index.php?step=3');
             exit;
@@ -321,14 +333,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $messageType = 'err';
             $step = 2;
         } else {
-            $username = isset($_POST['username']) ? trim($_POST['username']) : '';
-            $nickname = isset($_POST['nickname']) ? trim($_POST['nickname']) : '';
-            $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
-            $password2 = isset($_POST['password2']) ? (string) $_POST['password2'] : '';
-            $email = isset($_POST['email']) ? trim($_POST['email']) : '';
-            $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
-            $siteName = isset($_POST['site_name']) ? trim($_POST['site_name']) : '';
-            $motto = isset($_POST['site_motto']) ? trim($_POST['site_motto']) : '';
+            $username = input_text('username', '', 32, 'post');
+            $nickname = input_text('nickname', '', 64, 'post');
+            $password = input_password('password');
+            $password2 = input_password('password2');
+            // 邮箱/手机号用 input_text 保留原值：格式错误需给出明确提示，
+            // 若用 input_email/input_phone 会把非法输入静默归空、跳过下方报错
+            $email = input_text('email', '', 128, 'post');
+            $phone = input_text('phone', '', 16, 'post');
+            $siteName = input_text('site_name', '', 64, 'post');
+            $motto = input_text('site_motto', '', 128, 'post');
 
             do {
                 if (!preg_match('/^[a-zA-Z0-9_]{3,32}$/', $username)) {

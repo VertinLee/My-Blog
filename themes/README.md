@@ -123,6 +123,7 @@ Description: 主题描述（后台列表展示，截断 40 字）
 | `copyright_line()` | 页脚版权行 |
 | `Theme::assetsUrl($path)` | 主题静态资源 URL |
 | `Theme::part($name)` | 引入局部模板（如 `Theme::part('sidebar')`） |
+| `json_out_script($data)` | 在 `<script>` 内输出 JSON 字面量的唯一允许方式（HEX 四标志转义 `<>&'"`，防 `</script>` 逃逸；禁止在模板里直接 `json_encode`） |
 
 站内链接一律用 `Router::url($route, $params)` 生成（如文章页
 `Router::url('post', array('id' => $post['id']))`），禁止手写站内路径——

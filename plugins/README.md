@@ -125,11 +125,13 @@ URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`
 | `register_verify_provider($channel)` | 声明验证码渠道能力（仅插件加载期可调，强制归属当前插件） |
 | `get_verify_provider($channel)` | 查询渠道声明者 slug（未声明返回 null） |
 | `register_plugin_page($slug, $title, $callback)` | 注册后台设置页（在 `admin_menu` 钩子中调用） |
+| `input_password($key, $default, $maxLen)` | 口令/密钥专用输入校验器（原样透传不 trim 不过滤，仅字符串化与长度上限；AccessKeySecret、SMTP 授权码等一律经它读取，禁止直读 `$_POST`） |
 
 其他可用内核 API：`add_action/add_filter`、`e()`、`Router::url()`、`Option::get()`、
 `DB::query()`（结构化查询构造器，值自动参数绑定）、`blog_log()`、`client_ip()` 等。
 **禁止**在插件中直接拼接 SQL、直接读 `$_GET`/`$_POST`
-原值、输出未转义变量——请复用内核的统一输入校验器与 `e()`。
+原值、输出未转义变量——请复用内核的统一输入校验器（`input_text/input_int/input_email/input_phone/input_slug/input_enum/input_password`）与 `e()`；
+在 `<script>` 内输出 JSON 一律用 `json_out_script()`。
 
 ### 4.1 插件数据存储（plugin_data 表）
 

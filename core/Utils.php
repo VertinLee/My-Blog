@@ -103,6 +103,19 @@ function json_out(array $data)
 }
 
 /**
+ * 在 <script> 内输出 JSON 字面量的统一入口（防御纵深）
+ * HEX 四标志把 < > & ' " 全部转为 ，即使值未来引入用户可控数据，
+ * 也无法经 </script> 或属性逃逸改变文档结构
+ *
+ * @param mixed $data 任意可 JSON 序列化数据
+ * @return string
+ */
+function json_out_script($data)
+{
+    return json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
+}
+
+/**
  * 统一输入校验器：整数
  *
  * @param string $key     参数名
@@ -225,6 +238,26 @@ function input_enum($key, array $allowed, $default = '', $source = 'request')
     $src = input_source($source);
     $value = isset($src[$key]) ? (string) $src[$key] : '';
     return in_array($value, $allowed, true) ? $value : $default;
+}
+
+/**
+ * 统一输入校验器：口令/密钥原文（密码、AccessKeySecret、SMTP 授权码等）
+ * 只做字符串化与长度上限，不 trim、不过滤——口令原文须逐字节保留，
+ * 强度判定由 Auth::validate_password_strength() 另行负责
+ *
+ * @param string $key     参数名
+ * @param string $default 缺省值
+ * @param int    $maxLen  最大长度（字节）
+ * @param string $source  get/post/request
+ * @return string
+ */
+function input_password($key, $default = '', $maxLen = 128, $source = 'post')
+{
+    $src = input_source($source);
+    if (!isset($src[$key]) || !is_string($src[$key]) || $src[$key] === '') {
+        return $default;
+    }
+    return substr($src[$key], 0, $maxLen);
 }
 
 /**

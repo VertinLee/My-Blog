@@ -399,7 +399,7 @@ class Front
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Csrf::verifyOrDie();
             $account = input_text('account', '', 128, 'post');
-            $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+            $password = input_password('password');
             if ($account === '' || $password === '') {
                 $error = '请输入账号和密码';
             } else {
@@ -455,8 +455,8 @@ class Front
             $nickname = input_text('nickname', '', 64, 'post');
             $email = input_email('email', '', 'post');
             $phone = input_phone('phone', '', 'post');
-            $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
-            $password2 = isset($_POST['password2']) ? (string) $_POST['password2'] : '';
+            $password = input_password('password');
+            $password2 = input_password('password2');
             $old = array('username' => $username, 'nickname' => $nickname, 'email' => $email, 'phone' => $phone);
 
             do {
@@ -577,8 +577,8 @@ class Front
                 }
             }
             $code = input_text('code', '', 6, 'post');
-            $newPassword = isset($_POST['new_password']) ? (string) $_POST['new_password'] : '';
-            $newPassword2 = isset($_POST['new_password2']) ? (string) $_POST['new_password2'] : '';
+            $newPassword = input_password('new_password');
+            $newPassword2 = input_password('new_password2');
 
             do {
                 // 与账号存在性无关的格式校验先行：避免"存在账号才走到的分支"
@@ -671,8 +671,8 @@ class Front
         $content = input_text('content', '', 2000, 'post');
 
         $back = Router::url('home');
-        if (isset($_POST['redirect']) && is_string($_POST['redirect'])) {
-            $candidate = $_POST['redirect'];
+        $candidate = input_text('redirect', '', 255, 'post');
+        if ($candidate !== '') {
             // 防开放重定向：仅允许站内安全字符组成的相对路径
             if (preg_match('#^[A-Za-z0-9/_.?=&%-]+$#', $candidate)
                 && strpos($candidate, '//') === false

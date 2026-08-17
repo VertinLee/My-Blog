@@ -138,9 +138,9 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
     var isDark = document.documentElement.classList.contains('darkmode');
     window.cbVditor = new Vditor('vditor', {
         // 必须指定本地 cdn：Vditor 默认从 unpkg CDN 懒加载 lute/图标等子资源，违反禁 CDN 约束
-        cdn: <?php echo json_encode(assets_url('vendor/vditor')); ?>,
+        cdn: <?php echo json_out_script(assets_url('vendor/vditor')); ?>,
         // emoji 图片路径同样默认指向内置 CDN，须显式指向本地 dist/images/emoji
-        emojiPath: <?php echo json_encode(assets_url('vendor/vditor/dist/images/emoji')); ?>,
+        emojiPath: <?php echo json_out_script(assets_url('vendor/vditor/dist/images/emoji')); ?>,
         height: 420,
         // 默认分屏渲染（sv）；所见即所得 wysiwyg / 即时渲染 ir 可在工具栏切换
         mode: 'sv',
@@ -156,14 +156,14 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
             math: { engine: 'KaTeX' },
             theme: {
                 current: isDark ? 'dark' : 'light',
-                path: <?php echo json_encode(assets_url('vendor/vditor/dist/css/content-theme')); ?>
+                path: <?php echo json_out_script(assets_url('vendor/vditor/dist/css/content-theme')); ?>
             }
         },
         toolbarConfig: { pin: true },
         upload: {
-            url: <?php echo json_encode(site_base_admin('upload/image')); ?>,
+            url: <?php echo json_out_script(site_base_admin('upload/image')); ?>,
             fieldName: 'file',
-            extraData: { _csrf: <?php echo json_encode(Csrf::token()); ?> },
+            extraData: { _csrf: <?php echo json_out_script(Csrf::token()); ?> },
             max: 2 * 1024 * 1024,
             accept: 'image/jpeg,image/png,image/webp,image/gif',
             format: function (files, responseText) {
@@ -213,9 +213,9 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
         if (!fileInput.files.length) { return; }
         var fd = new FormData();
         fd.append('file', fileInput.files[0]);
-        fd.append('_csrf', <?php echo json_encode(Csrf::token()); ?>);
+        fd.append('_csrf', <?php echo json_out_script(Csrf::token()); ?>);
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', <?php echo json_encode(site_base_admin('upload/image')); ?>, true);
+        xhr.open('POST', <?php echo json_out_script(site_base_admin('upload/image')); ?>, true);
         xhr.onreadystatechange = function () {
             if (xhr.readyState === 4) {
                 try {

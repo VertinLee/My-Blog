@@ -142,9 +142,18 @@ class AdminTheme
         $hasStyle = false;
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $entry = $zip->getNameIndex($i);
-            if (strpos($entry, '..') !== false || substr($entry, 0, 1) === '/') {
+            if (strpos($entry, '..') !== false || substr($entry, 0, 1) === '/' || strpos($entry, '\\') !== false) {
                 $zip->close();
                 flash_set('error', 'zip 包含非法路径条目');
+                redirect(site_base_admin('theme/list'));
+            }
+            // 条目白名单：拒绝隐藏文件（.htaccess/.user.ini 等，防宝塔下重写失效后被直接执行）
+            // 与 phar/phtml/php3+ 等可执行伪装；注意不能拒 .php —— 主题模板本身就是 PHP 文件，
+            // 直接执行防护由重写规则（.htaccess/nginx.conf.example/bt-panel.rewrite.conf）承担
+            $base = basename($entry);
+            if ($base === '' || substr($base, 0, 1) === '.' || preg_match('/\.(phar|phtml|php\d)$/i', $base)) {
+                $zip->close();
+                flash_set('error', 'zip 包含不允许的条目：' . $base);
                 redirect(site_base_admin('theme/list'));
             }
             if (preg_match('#(^|/)style\.css$#', $entry)) {
@@ -158,8 +167,18 @@ class AdminTheme
         }
 
         $dest = Theme::dirOf($target);
-        mkdir($dest, 0755, true);
-        $zip->extractTo($dest);
+        if (!is_dir($dest) && !mkdir($dest, 0755, true)) {
+            $zip->close();
+            flash_set('error', '主题目录创建失败');
+            redirect(site_base_admin('theme/list'));
+        }
+        // 解压失败整体清理目标目录，避免遗留半成品文件
+        if (!$zip->extractTo($dest)) {
+            $zip->close();
+            self::removeDir($dest);
+            flash_set('error', 'zip 解压失败');
+            redirect(site_base_admin('theme/list'));
+        }
         $zip->close();
         // 兼容“包内再套一层目录”的打包方式：将子目录内容上移
         self::flattenSingleSubdir($dest);
