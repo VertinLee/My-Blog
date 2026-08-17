@@ -481,6 +481,8 @@ id / name / slug UNIQUE / description / sort。
 | 8 | 默认插件 smtp-mailer、aliyun-sms | 后台可配置；注册/找回密码可收发验证码；日志有记录且脱敏 |
 | 9 | Vditor 集成 + KaTeX/highlight.js 本地化 | 后台可编辑 Markdown，前台公式/代码高亮正常，无 CDN 引用 |
 | 10 | 收尾：模板/插件管理页完善、日志中心、.htaccess 与 nginx 示例、README | 全量 `php -l` 通过；全新环境按 README 可完成部署 |
+| 11 | 安全加固一轮（外部审计整改）：闪存 toast 转义 + `json_out_script()` 统一 `<script>` 内 JSON 输出；主题 zip 条目白名单（拒隐藏文件/phar/phtml/路径穿越，不拒 `.php` 模板）；口令/密钥统一经 `input_password()`；移除全部 `@` 抑制 | 恶意主题名不再触发存储型 XSS；危险条目 zip 被拒；全库无 `@`；口令字段无 `$_POST` 直读 |
+| 12 | 运行时升级 PHP 7.4+：安装自检/文档同步；会话 Cookie 改数组参数并全面启用 `SameSite=Lax`（含安装向导）；install 复用 `is_https()` | 7.4 环境下 Cookie 头含 `SameSite=Lax`；`HTTPS=off` 环境会话 Cookie 不误加 `Secure` |
 
 ---
 

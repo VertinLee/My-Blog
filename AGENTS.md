@@ -40,7 +40,9 @@
    - 改密必须验证原密码；敏感操作（改密、改邮箱/手机、导出日志）必须重新验证当前密码。
    - 日志与报错中禁止出现明文密码、明文验证码、AccessKeySecret、SMTP 授权码；日志中的邮箱/手机号必须脱敏。
 5. **Session**：登录成功后必须 `session_regenerate_id(true)`；Session cookie 必须 `HttpOnly`，HTTPS 下必须加 `Secure`；会话无操作超时（默认 30 分钟）必须实现；登出必须 `session_destroy()` 并使 cookie 失效。
-6. **上传**：上传文件必须用 fileinfo 校验真实 MIME，白名单（jpg/png/webp/gif），随机重命名；`uploads/` 必须配置禁止 PHP 执行的规则。
+6. **上传**：上传文件必须用 fileinfo 校验真实 MIME，白名单（jpg/png/webp/gif）；文件名采用
+   **内容哈希（md5_file）+ 秒传去重**（命中已存在文件跳过落盘，为既定 feature，见 commit 56f96d2，
+   不得改回随机命名）；`uploads/` 必须配置禁止 PHP 执行的规则。
 7. **敏感文件**：`config.php`、`core/` 下文件必须无法被 HTTP 直接访问（rewrite 规则 + 文件头部 `defined('APP_BOOT') or exit;` 双重防护）。
 8. **频率限制与锁定（等保二级·登录失败处理）**：登录必须实现"同一账号连续失败 5 次锁定 10 分钟"（持久化到 `users.login_fail`/`locked_until`，禁止只用 Session 计数）+ IP 维度限流；注册、验证码发送/校验接口必须实现频率限制（60s 重发间隔、每日上限、错误尝试达上限作废——上限由发送插件经 `plugin_option($plugin,'max_attempts')` 管理，缺省 2、内核钳制 1-5，达到上限立即置 used=1，禁止缺省高于 5）。
 9. **输入校验**：所有 GET/POST 参数必须经统一校验器（`input_int/input_email/input_phone/input_slug/input_enum/input_text`）处理，禁止在业务代码中直接使用 `$_GET`/`$_POST` 原值；SQL 中无法参数绑定的部分（排序、LIMIT、表名）必须走白名单或整型强转。
