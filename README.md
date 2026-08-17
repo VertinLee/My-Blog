@@ -1,7 +1,7 @@
 # My Blog（纯 PHP 个人博客系统）
 
 零框架、零 Composer 的轻量个人博客系统，按等保二级（GB/T 22239-2019）相关要求设计，
-原生 PHP 7.2+ / MySQL 5.7 / PDO 实现。
+原生 PHP 7.4+ / MySQL 5.7 / PDO 实现。
 
 ## 功能概览
 
@@ -19,7 +19,7 @@
 
 | 项目 | 要求 |
 |---|---|
-| PHP | ≥ 7.2（语法按 7.2 兼容），扩展：pdo_mysql、mbstring、curl、fileinfo；主题上传需 zip |
+| PHP | ≥ 7.4，扩展：pdo_mysql、mbstring、curl、fileinfo；主题上传需 zip |
 | MySQL | ≥ 5.7.44（utf8mb4 / InnoDB） |
 | Web 服务器 | Apache（mod_rewrite）或 Nginx |
 

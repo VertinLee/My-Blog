@@ -7,11 +7,24 @@
 define('APP_BOOT', true);
 define('APP_ROOT', dirname(__DIR__));
 
+require __DIR__ . '/schema.php';
+require APP_ROOT . '/core/Hook.php';
+require APP_ROOT . '/core/Auth.php';
+// 统一输入校验器与 is_https()（input_* 为纯函数，不依赖 DB/Option，可在安装上下文安全使用）
+require APP_ROOT . '/core/Utils.php';
+
 // 安装程序自身也使用 UTC+8，保证初始时间戳（管理员建号、site_created_year）与站点默认时区一致
 date_default_timezone_set('Asia/Shanghai');
 
 session_name('cb_install_sid');
-session_set_cookie_params(0, '/', '', isset($_SERVER['HTTPS']), true);
+// 与内核 bootstrap 同策略：HTTPS 判定复用 is_https()（含 HTTPS='off' 与 443 端口识别）
+session_set_cookie_params(array(
+    'lifetime' => 0,
+    'path'     => '/',
+    'secure'   => is_https(),
+    'httponly' => true,
+    'samesite' => 'Lax',
+));
 session_start();
 
 // 已安装则跳转首页（双重守卫：install.lock 或 config.php 任一存在即视为已安装；
@@ -22,12 +35,6 @@ if (is_file(__DIR__ . '/install.lock') || is_file(APP_ROOT . '/config.php')) {
     header('Location: ' . $base . '/');
     exit;
 }
-
-require __DIR__ . '/schema.php';
-require APP_ROOT . '/core/Hook.php';
-require APP_ROOT . '/core/Auth.php';
-// 统一输入校验器（input_* 为纯函数，不依赖 DB/Option，可在安装上下文安全使用）
-require APP_ROOT . '/core/Utils.php';
 
 /* ---------- 安装程序内部助手 ---------- */
 
@@ -81,8 +88,8 @@ function ins_env_check()
 {
     $items = array();
     $items[] = array(
-        'name' => 'PHP 版本 ≥ 7.2',
-        'ok'   => version_compare(PHP_VERSION, '7.2.0', '>='),
+        'name' => 'PHP 版本 ≥ 7.4',
+        'ok'   => version_compare(PHP_VERSION, '7.4.0', '>='),
         'info' => '当前 ' . PHP_VERSION,
     );
     foreach (array('pdo_mysql', 'mbstring', 'openssl', 'json', 'curl', 'fileinfo', 'gd') as $ext) {

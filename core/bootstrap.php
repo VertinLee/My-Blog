@@ -89,12 +89,15 @@ if (Option::get('debug', '0') === '1') {
     ini_set('log_errors', '1');
 }
 
-// Session：HttpOnly + HTTPS 下 Secure；空闲超时在 Auth::checkSessionTimeout 处理
+// Session：HttpOnly + SameSite=Lax + HTTPS 下 Secure；空闲超时在 Auth::checkSessionTimeout 处理
 $secure = is_https();
-// 注意：数组形式为 PHP 7.3+ 语法，此处使用 7.2 兼容的位置参数形式
-session_set_cookie_params(0, '/', '', $secure, true);
-// SameSite 在 PHP 7.3+ 经 ini 生效，7.2 下自动忽略
-ini_set('session.cookie_samesite', 'Lax');
+session_set_cookie_params(array(
+    'lifetime' => 0,
+    'path'     => '/',
+    'secure'   => $secure,
+    'httponly' => true,
+    'samesite' => 'Lax',
+));
 session_name('cb_sid');
 session_start();
 
