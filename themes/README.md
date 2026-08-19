@@ -123,6 +123,7 @@ Description: 主题描述（后台列表展示，截断 40 字）
 | `copyright_line()` | 页脚版权行 |
 | `Theme::assetsUrl($path)` | 主题静态资源 URL |
 | `Theme::part($name)` | 引入局部模板（如 `Theme::part('sidebar')`） |
+| `json_out_script($data)` | 在 `<script>` 内输出 JSON 字面量的唯一允许方式（HEX 四标志转义 `<>&'"`，防 `</script>` 逃逸；禁止在模板里直接 `json_encode`） |
 
 站内链接一律用 `Router::url($route, $params)` 生成（如文章页
 `Router::url('post', array('id' => $post['id']))`），禁止手写站内路径——
@@ -227,8 +228,14 @@ add_filter('post_content', 'my_theme_content');
   （未填不展示；均填时以「|」分隔；公安备案前带 `gongan-icon.png` 图标并链接
   `beian.mps.gov.cn` 查询页，ICP 链接 `beian.miit.gov.cn`）。主题若需自带备案图标，
   应将 `gongan-icon.png` 随主题包分发。
-- **上传**：zip 包（≤10MB）内必须包含 `style.css`，禁止路径穿越条目；
+- **上传**：zip 包（≤10MB）内必须包含 `style.css`；条目白名单：禁止路径穿越与反斜杠条目、
+  隐藏文件（`.htaccess`/`.user.ini` 等）及 `phar`/`phtml`/`php3+` 可执行伪装，解压失败整体清理；
   解压后目录名取 zip 文件名（清洗为 `[a-z0-9_-]`），不得覆盖已有主题与 `default`。
+
+> **信任警示：主题是服务端 PHP 代码。** 启用主题即在前台渲染时执行其 `functions.php`
+> 与全部模板文件，等同于把站点代码执行权交给主题作者。只安装/启用来源可信的主题包；
+> 主题包内 PHP 文件的直接访问由重写规则拦截（Apache/Nginx 均含），但宝塔面板可能因自带
+> PHP 规则优先匹配而失效，此时依赖"仅启用可信主题"这一前提兜底。
 - **删除保护**：
   - `default` 主题**永久禁止删除**（前端不渲染删除按钮 + 服务端双重拦截）；
   - 当前启用中的主题不可删除；
@@ -241,7 +248,7 @@ add_filter('post_content', 'my_theme_content');
 2. 模板内禁止直接操作 `DB`/`$_GET`/`$_POST`——数据一律来自注入的上下文或模板 API。
 3. 禁止任何运行时 CDN 引用（含字体、图片）；第三方资源本地化到 `assets/vendor/`。
 4. 前台文章页受受限 CSP 约束（仅 `'self'` 本地资源），内联脚本/外部 CDN 会被浏览器拦截。
-5. PHP 7.2 语法兼容（禁止箭头函数、`??=`、尾随逗号调用等）。
+5. PHP 7.4 语法兼容（允许箭头函数、`??=` 等 7.4 特性；禁止仅 8.0+ 支持的语法/函数）。
 6. 每个 PHP 文件头部保留 `defined('APP_BOOT') or exit;` 守卫。
 
 ## 8. 快速上手

@@ -66,7 +66,8 @@ class SmtpClient
         $remote = ($this->encryption === 'ssl' ? 'ssl://' : 'tcp://') . $this->host . ':' . $this->port;
         $errno = 0;
         $errstr = '';
-        $this->sock = @stream_socket_client($remote, $errno, $errstr, 15);
+        // 连接失败的告警由内核错误处理器记录，失败原因经 $errstr 落入 $this->error
+        $this->sock = stream_socket_client($remote, $errno, $errstr, 15);
         if (!$this->sock) {
             $this->error = '连接失败：' . $errstr;
             return false;
@@ -137,9 +138,10 @@ class SmtpClient
     /** 结束会话 */
     private function quit()
     {
-        if ($this->sock) {
-            @fwrite($this->sock, "QUIT\r\n");
-            @fclose($this->sock);
+        if (is_resource($this->sock)) {
+            // 收尾写失败无实际影响，告警由内核错误处理器记录
+            fwrite($this->sock, "QUIT\r\n");
+            fclose($this->sock);
             $this->sock = null;
         }
     }
@@ -153,7 +155,7 @@ class SmtpClient
      */
     private function cmd($command, $expect)
     {
-        if (!@fwrite($this->sock, $command . "\r\n")) {
+        if (!fwrite($this->sock, $command . "\r\n")) {
             $this->error = '写入失败';
             return false;
         }

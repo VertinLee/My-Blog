@@ -59,7 +59,7 @@ class AdminUser
         $role = input_enum('role', array('user', 'editor', 'admin'), 'user', 'post');
         $status = input_int('status', 1, 'post') === 1 ? 1 : 0;
         $forceChange = input_int('force_change', 0, 'post') === 1;
-        $newPassword = isset($_POST['new_password']) ? (string) $_POST['new_password'] : '';
+        $newPassword = input_password('new_password');
 
         if ($id > 0) {
             self::updateUser($id, $nickname, $email, $phone, $role, $status, $forceChange, $newPassword);
@@ -132,7 +132,7 @@ class AdminUser
             || $email !== $oldEmail
             || $phone !== (string) $user['phone'];
         if ($sensitive) {
-            $currentPassword = isset($_POST['current_password']) ? (string) $_POST['current_password'] : '';
+            $currentPassword = input_password('current_password');
             $operator = Auth::user();
             if ($currentPassword === '' || !password_verify($currentPassword, $operator['password'])) {
                 blog_log('user', 'user.update', 'fail', array(

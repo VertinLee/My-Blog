@@ -136,9 +136,9 @@ $flashMsgs = flash_pull();
     </div>
 </div>
 <?php if (!empty($flashMsgs)): ?>
-<script>window.CB_FLASH = <?php echo json_encode(array_map(function ($fm) {
+<script>window.CB_FLASH = <?php echo json_out_script(array_map(function ($fm) {
     return array('type' => $fm['type'], 'text' => $fm['text']);
-}, $flashMsgs), JSON_UNESCAPED_UNICODE); ?>;</script>
+}, $flashMsgs)); ?>;</script>
 <?php endif; ?>
 <script src="<?php echo e(assets_url('vendor/layui/layui.js')); ?>"></script>
 <script src="<?php echo e(assets_url('admin/admin.js')); ?>"></script>

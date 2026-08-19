@@ -1,6 +1,6 @@
 <?php
 /**
- * 后台图片上传：fileinfo 真实 MIME 校验 + 白名单 + 随机重命名
+ * 后台图片上传：fileinfo 真实 MIME 校验 + 白名单 + 内容哈希命名（秒传去重）
  * imageAction 能力点 upload（文章配图/封面）；avatarAction 能力点 edit_profile（个人头像，全体登录用户可用）
  * 上传目录 uploads/年/月/，禁止 PHP 执行（见 uploads/.htaccess 与 nginx 规则）
  */
@@ -43,7 +43,8 @@ class AdminUpload
     }
 
     /**
-     * 统一落盘逻辑：校验上传文件 → fileinfo 真实 MIME 白名单 → 随机重命名存入 uploads/年/月/
+     * 统一落盘逻辑：校验上传文件 → fileinfo 真实 MIME 白名单 → 内容哈希命名存入 uploads/年/月/
+     * （md5_file 命名实现秒传去重：内容相同的图片命中已存在文件即跳过落盘，为既定 feature）
      *
      * @param int    $maxBytes 大小上限（字节）
      * @param string $sizeMsg  超限提示

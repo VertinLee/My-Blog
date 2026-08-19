@@ -83,8 +83,8 @@ defined('APP_BOOT') or exit;
 <script>
 // 验证码发送按钮配置（复用前台 verify.js 通用逻辑，必须在引入前定义）
 window.CB_VERIFY = {
-    url: <?php echo json_encode(Router::url('verify_send')); ?>,
-    csrf: <?php echo json_encode(Csrf::token()); ?>
+    url: <?php echo json_out_script(Router::url('verify_send')); ?>,
+    csrf: <?php echo json_out_script(Csrf::token()); ?>
 };
 </script>
 <script src="<?php echo e(assets_url('front/verify.js')); ?>"></script>
@@ -106,9 +106,9 @@ window.CB_VERIFY = {
         if (!fileInput.files.length) { return; }
         var fd = new FormData();
         fd.append('file', fileInput.files[0]);
-        fd.append('_csrf', <?php echo json_encode(Csrf::token()); ?>);
+        fd.append('_csrf', <?php echo json_out_script(Csrf::token()); ?>);
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', <?php echo json_encode(site_base_admin('upload/avatar')); ?>, true);
+        xhr.open('POST', <?php echo json_out_script(site_base_admin('upload/avatar')); ?>, true);
         xhr.onreadystatechange = function () {
             if (xhr.readyState === 4) {
                 try {

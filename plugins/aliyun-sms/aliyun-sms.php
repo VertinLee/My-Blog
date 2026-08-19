@@ -133,8 +133,7 @@ function aliyun_sms_page()
         plugin_option_update('aliyun-sms', 'access_key_id', input_text('access_key_id', '', 64, 'post'));
         // AccessKeySecret 留空表示不修改（避免回显明文）；
         // 剔除全部空白：阿里云密钥不含空白字符，复制粘贴带入的空格/换行会直接导致 SignatureDoesNotMatch
-        $secret = isset($_POST['access_key_secret']) ? (string) $_POST['access_key_secret'] : '';
-        $secret = preg_replace('/\s+/', '', $secret);
+        $secret = preg_replace('/\s+/', '', input_password('access_key_secret', '', 128));
         if ($secret !== '') {
             plugin_option_update('aliyun-sms', 'access_key_secret', $secret);
         }

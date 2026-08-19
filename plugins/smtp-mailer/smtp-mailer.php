@@ -117,7 +117,7 @@ function smtp_mailer_page()
             plugin_option_update('smtp-mailer', 'encryption', input_enum('encryption', array('none', 'ssl', 'tls'), 'ssl', 'post'));
             plugin_option_update('smtp-mailer', 'username', input_email('username', '', 'post'));
             // 授权码留空表示不修改（避免回显明文）
-            $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+            $password = input_password('password');
             if ($password !== '') {
                 plugin_option_update('smtp-mailer', 'password', $password);
             }

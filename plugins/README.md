@@ -125,11 +125,13 @@ URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`
 | `register_verify_provider($channel)` | 声明验证码渠道能力（仅插件加载期可调，强制归属当前插件） |
 | `get_verify_provider($channel)` | 查询渠道声明者 slug（未声明返回 null） |
 | `register_plugin_page($slug, $title, $callback)` | 注册后台设置页（在 `admin_menu` 钩子中调用） |
+| `input_password($key, $default, $maxLen)` | 口令/密钥专用输入校验器（原样透传不 trim 不过滤，仅字符串化与长度上限；AccessKeySecret、SMTP 授权码等一律经它读取，禁止直读 `$_POST`） |
 
 其他可用内核 API：`add_action/add_filter`、`e()`、`Router::url()`、`Option::get()`、
 `DB::query()`（结构化查询构造器，值自动参数绑定）、`blog_log()`、`client_ip()` 等。
 **禁止**在插件中直接拼接 SQL、直接读 `$_GET`/`$_POST`
-原值、输出未转义变量——请复用内核的统一输入校验器与 `e()`。
+原值、输出未转义变量——请复用内核的统一输入校验器（`input_text/input_int/input_email/input_phone/input_slug/input_enum/input_password`）与 `e()`；
+在 `<script>` 内输出 JSON 一律用 `json_out_script()`。
 
 ### 4.1 插件数据存储（plugin_data 表）
 
@@ -222,13 +224,16 @@ function hello_world_page()
 2. 不得绕过 CSRF（内核已对后台 POST 统一校验，插件设置页无需重复实现，但不得自建旁路表单）。
 3. 日志不得含明文密码、验证码、密钥、授权码；邮箱/手机号必须脱敏。
 4. 不得引入 Composer 依赖与运行时 CDN 资源。
-5. PHP 7.2 语法兼容（禁止箭头函数、`??=`、尾随逗号调用等）。
+5. PHP 7.4 语法兼容（允许箭头函数、`??=` 等 7.4 特性；禁止仅 8.0+ 支持的语法/函数）。
 6. **不得跨插件写入其它插件的命名空间**：内核按执行上下文（插件主文件加载、
    钩子回调、设置页回调期间自动识别归属插件）强制校验 `plugin_option_update` /
    `plugin_data_*` / `plugin_user_*` / `plugin_register_table` 的写入目标，
    越界写入将被静默拒绝并记入 `security` 审计（action=`plugin.write_denied`）。
-   读取不受限制。注意：插件仍是管理员安装的可信服务端代码，本机制拦截的是
-   插件间的配置/数据篡改路径，不构成完整沙箱。
+    读取不受限制。注意：插件仍是管理员安装的可信服务端代码，本机制拦截的是
+    插件间的配置/数据篡改路径，不构成完整沙箱。
+7. **插件激活即执行 PHP 代码**：启用插件后其主文件随每次请求被内核加载，等同于
+   把站点代码执行权交给插件作者。只安装/启用来源可信的插件；`plugins/` 下 PHP
+   直接访问由重写规则拦截（宝塔面板可能因自带 PHP 规则优先匹配而失效，见根 README 伪静态节）。
 
 ## 8. 完整示例
 

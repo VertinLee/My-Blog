@@ -76,7 +76,7 @@ class AdminLog
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             Admin::forbidden('export requires POST');
         }
-        $password = isset($_POST['current_password']) ? (string) $_POST['current_password'] : '';
+        $password = input_password('current_password');
         $user = Auth::user();
         if ($password === '' || !password_verify($password, $user['password'])) {
             blog_log('security', 'log.export', 'fail', array('reason' => 'password_wrong'));

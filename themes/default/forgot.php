@@ -53,8 +53,8 @@ Theme::part('header');
     </div>
     <script>
     window.CB_VERIFY = {
-        url: <?php echo json_encode(Router::url('verify_send')); ?>,
-        csrf: <?php echo json_encode(Csrf::token()); ?>
+        url: <?php echo json_out_script(Router::url('verify_send')); ?>,
+        csrf: <?php echo json_out_script(Csrf::token()); ?>
     };
     </script>
     <script src="<?php echo e(assets_url('front/verify.js')); ?>"></script>

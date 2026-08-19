@@ -149,10 +149,18 @@
             return;
         }
         var first = msgs[0];
-        layer.msg(first.text, {
+        // layer.msg 按 HTML 渲染内容：闪存文本可能含主题名等受控字符串，必须先转义
+        layer.msg(escapeHtml(first.text), {
             icon: first.type === 'success' ? 1 : 2,
             time: 2500,
             anim: 6
+        });
+    }
+
+    /** HTML 特殊字符转义（用于把不可信文本安全交给按 HTML 渲染的组件） */
+    function escapeHtml(text) {
+        return String(text).replace(/[&<>"']/g, function (ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
         });
     }
 
