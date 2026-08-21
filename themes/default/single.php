@@ -20,6 +20,10 @@ $commentActionsOn = !empty($commentAreaState['actions']);
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         </button>
         <div class="toolbar-spacer"></div>
+        <?php // 目录按钮：宽屏（≥1500px）目录常驻故 CSS 隐藏此钮；正文无 h2/h3 时 JS 也会隐藏 ?>
+        <button type="button" class="toolbar-btn" id="btn-toc" title="文章目录" aria-label="文章目录" aria-expanded="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
         <button type="button" class="toolbar-btn" id="btn-font-decrease" title="缩小字号" aria-label="缩小字号">
             <span class="font-btn-inner">A</span><span class="font-btn-inner-small">A</span>
         </button>
@@ -30,6 +34,10 @@ $commentActionsOn = !empty($commentAreaState['actions']);
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
         </button>
     </div>
+
+    <?php // 阅读进度条与目录抽屉遮罩：均 position:fixed，DOM 位置不影响呈现，交互见 theme.js ?>
+    <div class="reading-progress" id="reading-progress"><span class="reading-progress-bar" id="reading-progress-bar"></span></div>
+    <div class="toc-overlay" id="toc-overlay"></div>
 
     <article>
         <header class="article-header">
@@ -52,7 +60,8 @@ $commentActionsOn = !empty($commentAreaState['actions']);
                 <?php if ($singlePost['status'] !== 'published'): ?><span class="badge">未发布预览</span><?php endif; ?>
             </div>
         </header>
-        <div class="article-content" id="article-content">
+        <?php // 首字下沉开关（主题设置 first_letter，默认开），样式见 style.css .drop-cap ?>
+        <div class="article-content<?php echo theme_setting('first_letter', '1') === '1' ? ' drop-cap' : ''; ?>" id="article-content">
             <?php echo render_content($singlePost['content']); ?>
         </div>
     </article>

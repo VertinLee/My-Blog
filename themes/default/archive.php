@@ -33,7 +33,7 @@ Theme::part('header');
     <?php $postUrl = Router::url('post', array('slug' => $postItem['slug'] !== '' ? $postItem['slug'] : (int) $postItem['id'], 'id' => (int) $postItem['id'])); ?>
     <?php do_action('post_card_before', $postItem, 'archive'); /* 插件注入点：卡片前 */ ?>
     <article class="post-card">
-        <h2 class="post-card-title"><?php if (!empty($postItem['is_top'])): ?><span class="badge">置顶</span> <?php endif; ?><a href="<?php echo e($postUrl); ?>"><?php echo e($postItem['title']); ?></a></h2>
+        <h2 class="post-card-title"><?php if (!empty($postItem['is_top'])): ?><span class="badge badge-seal">置顶</span> <?php endif; ?><a href="<?php echo e($postUrl); ?>"><?php echo e($postItem['title']); ?></a></h2>
         <div class="post-card-meta">
             <?php // 作者名跳转作者页；id=0（“未知作者”回退数据）无页可跳仍用纯文本 ?>
             <?php if ((int) $postItem['author']['id'] > 0): ?>

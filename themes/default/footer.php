@@ -52,6 +52,11 @@ defined('APP_BOOT') or exit;
 </div><!-- /#main -->
 </div><!-- /.site-wrapper -->
 
+<?php // 回到顶部：全站通用悬浮钮，滚动超过阈值后由 theme.js 显示 ?>
+<button type="button" class="back-to-top" id="back-to-top" aria-label="回到顶部" title="回到顶部">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
 <?php theme_footer(); ?>
 </body>
 </html>
