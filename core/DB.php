@@ -282,13 +282,15 @@ class DB_Query
         return $this;
     }
 
-    /** 多字段 LIKE 任一命中（搜索场景） */
+    /** 多字段 LIKE 任一命中（搜索场景）；值内通配符转义，防止 % _ 被当作通配符枚举数据 */
     public function likeAny(array $fields, $value)
     {
+        // MySQL LIKE 默认以反斜杠为转义符，先转义 \ 再转义 % _
+        $escaped = strtr($value, array('\\' => '\\\\', '%' => '\\%', '_' => '\\_'));
         $parts = array();
         foreach ($fields as $field) {
             $parts[] = self::checkField($field) . ' LIKE ?';
-            $this->params[] = '%' . $value . '%';
+            $this->params[] = '%' . $escaped . '%';
         }
         $this->wheres[] = '(' . implode(' OR ', $parts) . ')';
         return $this;

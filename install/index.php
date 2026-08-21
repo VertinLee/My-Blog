@@ -139,6 +139,14 @@ function ins_env_check()
  */
 function ins_pdo($host, $port, $user, $pass, $dbname = '')
 {
+    // DSN 注入防护：host 仅允许主机名/IP/IPv6 字符集，dbname 拒绝分隔符，
+    // 防止 ";host=evil" 之类输入把连接重定向到攻击者控制的 MySQL
+    if (!preg_match('/^[A-Za-z0-9.\-:]+$/', (string) $host)) {
+        throw new InvalidArgumentException('数据库主机名包含非法字符');
+    }
+    if ($dbname !== '' && strpos($dbname, ';') !== false) {
+        throw new InvalidArgumentException('数据库名包含非法字符');
+    }
     $dsn = 'mysql:host=' . $host . ';port=' . (int) $port . ';charset=utf8mb4';
     if ($dbname !== '') {
         $dsn .= ';dbname=' . $dbname;
@@ -237,22 +245,23 @@ function ins_do_install($dbConf, $admin)
         $p->execute(array($adminId, $welcome, mb_substr(strip_tags($welcome), 0, 120), $now, $now));
     }
 
-    // 生成 config.php（DB 配置 + 64 位随机密钥）
+    // 生成 config.php（DB 配置 + 64 位随机密钥；var_export 与 PHP 源码语义同构，天然安全转义）
     $key = bin2hex(random_bytes(32));
+    $configData = array(
+        'db' => array(
+            'host'   => $dbConf['host'],
+            'port'   => (int) $dbConf['port'],
+            'name'   => $dbConf['name'],
+            'user'   => $dbConf['user'],
+            'pass'   => $dbConf['pass'],
+            'prefix' => $prefix,
+        ),
+        'key' => $key,
+    );
     $config = "<?php\n"
         . "/**\n * 站点配置：由安装程序生成，请勿泄露；禁止 HTTP 直接访问\n */\n"
         . "defined('APP_BOOT') or exit;\n\n"
-        . "return array(\n"
-        . "    'db' => array(\n"
-        . "        'host' => '" . addslashes($dbConf['host']) . "',\n"
-        . "        'port' => " . (int) $dbConf['port'] . ",\n"
-        . "        'name' => '" . addslashes($dbConf['name']) . "',\n"
-        . "        'user' => '" . addslashes($dbConf['user']) . "',\n"
-        . "        'pass' => '" . addslashes($dbConf['pass']) . "',\n"
-        . "        'prefix' => '" . addslashes($prefix) . "',\n"
-        . "    ),\n"
-        . "    'key' => '" . $key . "',\n"
-        . ");\n";
+        . 'return ' . var_export($configData, true) . ";\n";
     if (file_put_contents(APP_ROOT . '/config.php', $config) === false) {
         throw new RuntimeException('写入 config.php 失败，请检查站点根目录权限');
     }

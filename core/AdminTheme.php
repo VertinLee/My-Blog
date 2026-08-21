@@ -156,6 +156,19 @@ class AdminTheme
                 flash_set('error', 'zip 包含不允许的条目：' . $base);
                 redirect(site_base_admin('theme/list'));
             }
+            // 拒绝符号链接等 Unix 特殊类型条目：extractTo 会忠实重建 symlink，
+            // 后续普通条目可跟随链接落到主题目录之外（Zip Slip 变种）
+            $opsys = 0;
+            $extAttr = 0;
+            if ($zip->getExternalAttributesIndex($i, $opsys, $extAttr) && $opsys === ZipArchive::OPSYS_UNIX) {
+                // 外部属性高 16 位为 st_mode；0x8000=普通文件、0x4000=目录，其余（含 0xA000 符号链接）一律拒绝
+                $entryType = ((int) $extAttr >> 16) & 0xF000;
+                if ($entryType !== 0 && $entryType !== 0x8000 && $entryType !== 0x4000) {
+                    $zip->close();
+                    flash_set('error', 'zip 包含不允许的条目类型（符号链接等）：' . $base);
+                    redirect(site_base_admin('theme/list'));
+                }
+            }
             if (preg_match('#(^|/)style\.css$#', $entry)) {
                 $hasStyle = true;
             }
