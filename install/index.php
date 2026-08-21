@@ -185,6 +185,7 @@ function ins_do_install($dbConf, $admin)
         'active_plugins'          => '[]',
         'rewrite_enabled'         => isset($admin['rewrite_enabled']) ? $admin['rewrite_enabled'] : '1',
         'timezone'                => 'Asia/Shanghai',
+        'admin_locale'            => 'zh_CN',
         'register_disabled'       => '0',
         'log_retention_days'      => '180',
         'login_max_fail'          => '5',

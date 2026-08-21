@@ -15,13 +15,19 @@
         return;
     }
 
+    // 文案覆盖：后台语言包经 window.CB_PWD_LANG 注入；缺省保持中文（前台不变）
+    var LANG = window.CB_PWD_LANG || {};
+    function L(key, def) {
+        return LANG[key] || def;
+    }
+
     /** 密码强度：长度 8-64、四类字符至少三类、不含用户名（与后端口径一致） */
     function pwdError(v, name) {
         if (v === '') {
-            return '请输入新密码';
+            return L('need', '请输入新密码');
         }
         if (v.length < 8 || v.length > 64) {
-            return '密码长度须为 8-64 位';
+            return L('len', '密码长度须为 8-64 位');
         }
         var classes = 0;
         if (/[A-Z]/.test(v)) { classes++; }
@@ -29,10 +35,10 @@
         if (/[0-9]/.test(v)) { classes++; }
         if (/[^A-Za-z0-9]/.test(v)) { classes++; }
         if (classes < 3) {
-            return '密码须包含大写/小写/数字/特殊字符中的至少三类';
+            return L('classes', '密码须包含大写/小写/数字/特殊字符中的至少三类');
         }
         if (name !== '' && v.toLowerCase().indexOf(name.toLowerCase()) !== -1) {
-            return '密码不得包含用户名';
+            return L('contain_name', '密码不得包含用户名');
         }
         return '';
     }
@@ -90,10 +96,10 @@
                 matchEl.textContent = '';
                 matchEl.className = 'pwd-match';
             } else if (pwd2.value === pwd.value) {
-                matchEl.textContent = '两次输入一致 ✓';
+                matchEl.textContent = L('match_ok', '两次输入一致 ✓');
                 matchEl.className = 'pwd-match ok';
             } else {
-                matchEl.textContent = '两次输入不一致';
+                matchEl.textContent = L('mismatch_live', '两次输入不一致');
                 matchEl.className = 'pwd-match err';
             }
         }
@@ -104,10 +110,10 @@
 
         function validatePwd2() {
             if (pwd2.value === '') {
-                return '请再次输入新密码';
+                return L('repeat', '请再次输入新密码');
             }
             if (pwd2.value !== pwd.value) {
-                return '两次输入的密码不一致';
+                return L('mismatch', '两次输入的密码不一致');
             }
             return '';
         }

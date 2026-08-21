@@ -218,7 +218,9 @@
     if (addBtn && tpl && tpl.content) {
         addBtn.addEventListener('click', function () {
             if (rows().length >= MAX_ITEMS) {
-                var tip = '最多 ' + MAX_ITEMS + ' 个导航项';
+                // 上限提示可由后台语言包覆盖（表单 data-max-tip 含 %s 占位）
+                var tipTpl = form.getAttribute('data-max-tip') || '最多 %s 个导航项';
+                var tip = tipTpl.replace('%s', MAX_ITEMS);
                 // 优先用 layui layer 轻提示（admin.js 暴露于 CB_ADMIN），缺失时回退 alert
                 if (window.CB_ADMIN && CB_ADMIN.layer) {
                     CB_ADMIN.layer.msg(tip, { icon: 2 });

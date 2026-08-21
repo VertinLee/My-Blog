@@ -54,7 +54,7 @@ class Admin
         // 密码过期强制改密拦截（开启后无绕过路径：仅放行改密页、改密提交与登出）
         $isPasswordFlow = $module === 'profile' && in_array($action, array('password', 'password_save'), true);
         if (!empty($_SESSION['pwd_expired']) && !$isPasswordFlow) {
-            flash_set('error', '密码已过期，请先修改密码');
+            flash_set('error', admin_t('admin.auth.pwd_expired'));
             redirect(site_base_admin('profile/password'));
         }
 
@@ -109,7 +109,7 @@ class Admin
                 $recentLogs = DB::query('logs')->orderBy('id', 'DESC')->limit(10)->select();
             }
         }
-        self::render('仪表盘', 'dashboard', array('stats' => $stats, 'recentLogs' => $recentLogs));
+        self::render(admin_t('admin.menu.dashboard'), 'dashboard', array('stats' => $stats, 'recentLogs' => $recentLogs));
     }
 
     /**
@@ -120,18 +120,18 @@ class Admin
     public static function menu()
     {
         $items = array(
-            array('m' => 'dashboard', 'name' => '仪表盘', 'cap' => 'read'),
-            array('m' => 'post/list', 'name' => '文章管理', 'cap' => 'edit_posts'),
-            array('m' => 'comment/list', 'name' => '评论管理', 'cap' => 'manage_comments'),
-            array('m' => 'category/list', 'name' => '分类管理', 'cap' => 'manage_categories'),
-            array('m' => 'user/list', 'name' => '用户管理', 'cap' => 'manage_users'),
-            array('m' => 'setting/site', 'name' => '站点设置', 'cap' => 'manage_options'),
-            array('m' => 'setting/nav', 'name' => '导航管理', 'cap' => 'manage_options'),
-            array('m' => 'setting/security', 'name' => '安全设置', 'cap' => 'manage_security'),
-            array('m' => 'theme/list', 'name' => '模板管理', 'cap' => 'manage_themes'),
-            array('m' => 'plugin/list', 'name' => '插件管理', 'cap' => 'manage_plugins'),
-            array('m' => 'log/list', 'name' => '日志中心', 'cap' => 'view_logs'),
-            array('m' => 'profile', 'name' => '个人资料', 'cap' => 'edit_profile'),
+            array('m' => 'dashboard', 'name' => admin_t('admin.menu.dashboard'), 'cap' => 'read'),
+            array('m' => 'post/list', 'name' => admin_t('admin.menu.post'), 'cap' => 'edit_posts'),
+            array('m' => 'comment/list', 'name' => admin_t('admin.menu.comment'), 'cap' => 'manage_comments'),
+            array('m' => 'category/list', 'name' => admin_t('admin.menu.category'), 'cap' => 'manage_categories'),
+            array('m' => 'user/list', 'name' => admin_t('admin.menu.user'), 'cap' => 'manage_users'),
+            array('m' => 'setting/site', 'name' => admin_t('admin.menu.setting_site'), 'cap' => 'manage_options'),
+            array('m' => 'setting/nav', 'name' => admin_t('admin.menu.setting_nav'), 'cap' => 'manage_options'),
+            array('m' => 'setting/security', 'name' => admin_t('admin.menu.setting_security'), 'cap' => 'manage_security'),
+            array('m' => 'theme/list', 'name' => admin_t('admin.menu.theme'), 'cap' => 'manage_themes'),
+            array('m' => 'plugin/list', 'name' => admin_t('admin.menu.plugin'), 'cap' => 'manage_plugins'),
+            array('m' => 'log/list', 'name' => admin_t('admin.menu.log'), 'cap' => 'view_logs'),
+            array('m' => 'profile', 'name' => admin_t('admin.menu.profile'), 'cap' => 'edit_profile'),
         );
         $visible = array();
         $pluginGroupIndex = -1;
@@ -154,7 +154,7 @@ class Admin
             }
         }
         if (!empty($pluginChildren)) {
-            $group = array('name' => '插件', 'children' => $pluginChildren);
+            $group = array('name' => admin_t('admin.menu.plugin_group'), 'children' => $pluginChildren);
             if ($pluginGroupIndex >= 0) {
                 array_splice($visible, $pluginGroupIndex + 1, 0, array($group));
             } else {

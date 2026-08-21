@@ -5,75 +5,75 @@
 defined('APP_BOOT') or exit;
 ?>
 <div class="card">
-    <h3>基本资料</h3>
+    <h3><?php echo e(admin_t('admin.profile.basic')); ?></h3>
     <form method="post" action="<?php echo e(site_base_admin('profile/save')); ?>" class="layui-form v-form">
         <?php echo Csrf::field(); ?>
         <div class="layui-form-item">
-            <label class="v-label">用户名</label>
+            <label class="v-label"><?php echo e(admin_t('admin.user.col_username')); ?></label>
             <input type="text" value="<?php echo e($user['username']); ?>" disabled class="layui-input">
         </div>
         <div class="layui-form-item">
-            <label class="v-label">昵称</label>
+            <label class="v-label"><?php echo e(admin_t('admin.user.col_nickname')); ?></label>
             <input type="text" name="nickname" value="<?php echo e($user['nickname']); ?>" class="layui-input">
         </div>
         <div class="layui-form-item">
-            <label class="v-label">个性签名（展示在作者页昵称下方，不超过 100 字，留空则不展示）</label>
+            <label class="v-label"><?php echo e(admin_t('admin.profile.signature')); ?></label>
             <input type="text" name="signature" maxlength="100" value="<?php echo e($user['signature']); ?>" class="layui-input">
         </div>
         <div class="layui-form-item">
-            <label class="v-label">邮箱</label>
+            <label class="v-label"><?php echo e(admin_t('admin.user.col_email')); ?></label>
             <input type="email" name="email" id="profileEmail" value="<?php echo $user['email'] !== null ? e($user['email']) : ''; ?>" class="layui-input">
         </div>
         <?php if (Plugin::isActive('smtp-mailer')): ?>
         <div class="layui-form-item">
-            <label class="v-label">邮箱验证码（仅修改邮箱时需要）</label>
+            <label class="v-label"><?php echo e(admin_t('admin.profile.email_code')); ?></label>
             <div class="filter-bar">
                 <input type="text" name="email_code" maxlength="6" class="layui-input" style="width:120px">
-                <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" data-scene="profile" data-channel="email" data-target="#profileEmail">发送验证码</button>
+                <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" data-scene="profile" data-channel="email" data-target="#profileEmail"><?php echo e(admin_t('admin.profile.send_code')); ?></button>
             </div>
         </div>
         <?php endif; ?>
         <div class="layui-form-item">
-            <label class="v-label">手机号</label>
+            <label class="v-label"><?php echo e(admin_t('admin.user.col_phone')); ?></label>
             <input type="text" name="phone" id="profilePhone" pattern="1[3-9][0-9]{9}" value="<?php echo e($user['phone']); ?>" class="layui-input">
         </div>
         <?php if (Plugin::isActive('aliyun-sms')): ?>
         <div class="layui-form-item">
-            <label class="v-label">短信验证码（仅修改手机号时需要）</label>
+            <label class="v-label"><?php echo e(admin_t('admin.profile.sms_code')); ?></label>
             <div class="filter-bar">
                 <input type="text" name="sms_code" maxlength="6" class="layui-input" style="width:120px">
-                <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" data-scene="profile" data-channel="sms" data-target="#profilePhone">发送验证码</button>
+                <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" data-scene="profile" data-channel="sms" data-target="#profilePhone"><?php echo e(admin_t('admin.profile.send_code')); ?></button>
             </div>
         </div>
         <?php endif; ?>
         <div class="layui-form-item">
-            <label class="v-label">头像（仅可通过上传更换，支持 jpg/png/webp/gif，不超过 1MB）</label>
+            <label class="v-label"><?php echo e(admin_t('admin.profile.avatar')); ?></label>
             <div class="filter-bar" style="align-items:center">
                 <img src="<?php echo $user['avatar'] !== '' ? e(Router::base() . '/' . $user['avatar']) : ''; ?>"
-                     id="avatarPreview" alt="头像预览"
+                     id="avatarPreview" alt="<?php echo e(admin_t('admin.profile.avatar_preview')); ?>"
                      style="display:<?php echo $user['avatar'] !== '' ? 'inline-block' : 'none'; ?>;width:48px;height:48px;border-radius:50%;object-fit:cover">
                 <?php // 头像路径为隐藏域：只接受上传接口回写的值，不提供手动填写入口 ?>
                 <input type="hidden" name="avatar" id="avatarPath" value="<?php echo e($user['avatar']); ?>">
                 <?php if (Auth::check_cap('edit_profile')): ?>
                 <input type="file" id="avatarFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
                 <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" id="avatarUploadBtn">
-                    <i class="layui-icon layui-icon-upload"></i> 上传头像
+                    <i class="layui-icon layui-icon-upload"></i> <?php echo e(admin_t('admin.profile.avatar_upload')); ?>
                 </button>
                 <?php endif; ?>
             </div>
         </div>
         <div class="layui-form-item">
-            <label class="v-label">当前密码（仅修改邮箱/手机时需要填写）</label>
+            <label class="v-label"><?php echo e(admin_t('admin.profile.current_pwd')); ?></label>
             <input type="password" name="password" autocomplete="current-password" class="layui-input">
         </div>
-        <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-ok"></i> 保存</button>
+        <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-ok"></i> <?php echo e(admin_t('admin.common.save')); ?></button>
     </form>
 </div>
 
 <div class="card">
-    <h3>修改密码</h3>
+    <h3><?php echo e(admin_t('admin.profile.change_pwd_card')); ?></h3>
     <a class="layui-btn" href="<?php echo e(site_base_admin('profile/password')); ?>">
-        <i class="layui-icon layui-icon-password"></i> 前往修改密码
+        <i class="layui-icon layui-icon-password"></i> <?php echo e(admin_t('admin.profile.goto_change_pwd')); ?>
     </a>
 </div>
 
@@ -84,7 +84,14 @@ defined('APP_BOOT') or exit;
 // 验证码发送按钮配置（复用前台 verify.js 通用逻辑，必须在引入前定义）
 window.CB_VERIFY = {
     url: <?php echo json_out_script(Router::url('verify_send')); ?>,
-    csrf: <?php echo json_out_script(Csrf::token()); ?>
+    csrf: <?php echo json_out_script(Csrf::token()); ?>,
+    // 后台语言包对 verify.js 提示语的覆盖注入
+    msg: <?php echo json_out_script(array(
+        'fill_target'   => admin_t('admin.verify.fill_target'),
+        'network_error' => admin_t('admin.verify.network_error'),
+        'retry_in'      => admin_t('admin.verify.retry_in'),
+        'send'          => admin_t('admin.profile.send_code'),
+    )); ?>
 };
 </script>
 <script src="<?php echo e(assets_url('front/verify.js')); ?>"></script>
@@ -119,11 +126,11 @@ window.CB_VERIFY = {
                         var preview = document.getElementById('avatarPreview');
                         preview.src = resp.data.url;
                         preview.style.display = 'inline-block';
-                        feedback('头像上传成功', true);
+                        feedback(<?php echo json_out_script(admin_t('admin.upload.avatar_ok')); ?>, true);
                     } else {
-                        feedback(resp.msg || '上传失败', false);
+                        feedback(resp.msg || <?php echo json_out_script(admin_t('admin.upload.failed')); ?>, false);
                     }
-                } catch (err) { feedback('上传失败', false); }
+                } catch (err) { feedback(<?php echo json_out_script(admin_t('admin.upload.failed')); ?>, false); }
             }
         };
         xhr.send(fd);

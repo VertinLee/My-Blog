@@ -11,21 +11,21 @@ if ($post) {
     $currentStatus = ($postAudit && !Auth::check_cap('moderate_posts')) ? 'pending' : 'published';
 }
 // 状态选项按审核开关与角色收敛
-$statusOptions = array('draft' => '草稿');
+$statusOptions = array('draft' => admin_t('admin.post.status_draft'));
 if ($postAudit) {
     if (Auth::check_cap('moderate_posts')) {
-        $statusOptions['published'] = '发布';
+        $statusOptions['published'] = admin_t('admin.post.opt_publish');
     } else {
-        $statusOptions['pending'] = '提交审核';
+        $statusOptions['pending'] = admin_t('admin.post.opt_submit_review');
     }
     if ($currentStatus === 'published' && Auth::check_cap('moderate_posts')) {
-        $statusOptions['published'] = '发布';
+        $statusOptions['published'] = admin_t('admin.post.opt_publish');
     }
 } else {
-    $statusOptions['published'] = '发布';
+    $statusOptions['published'] = admin_t('admin.post.opt_publish');
 }
 if ($currentStatus === 'pending' && !isset($statusOptions['pending'])) {
-    $statusOptions['pending'] = '待审核';
+    $statusOptions['pending'] = admin_t('admin.post.status_pending');
 }
 // 是否勾选了独立页面：控制“显示在侧边栏导航”项的显隐（该选项仅独立页面生效）
 $isPageOn = $post && (int) $post['is_page'] === 1;
@@ -36,20 +36,20 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
     <input type="hidden" name="id" value="<?php echo $post ? (int) $post['id'] : 0; ?>">
 
     <div class="layui-form-item">
-        <label class="v-label">标题 *</label>
+        <label class="v-label"><?php echo e(admin_t('admin.post.field_title')); ?> *</label>
         <input type="text" name="title" value="<?php echo $post ? e($post['title']) : ''; ?>" required class="layui-input" style="max-width:100%">
     </div>
 
     <?php // 别名/分类/状态/页面选项：行内多列 ?>
     <div class="filter-bar" style="align-items:flex-start;margin-bottom:14px">
         <div>
-            <label class="v-label">别名，不能为纯数字</label>
+            <label class="v-label"><?php echo e(admin_t('admin.post.field_slug')); ?></label>
             <input type="text" name="slug" value="<?php echo $post ? e($post['slug']) : ''; ?>" pattern="[a-z0-9-]*" class="layui-input" style="width:240px">
         </div>
         <div>
-            <label class="v-label">分类</label>
+            <label class="v-label"><?php echo e(admin_t('admin.post.col_category')); ?></label>
             <select name="category_id">
-                <option value="0">未分类</option>
+                <option value="0"><?php echo e(admin_t('admin.post.uncategorized')); ?></option>
                 <?php foreach ($categories as $cat): ?>
                 <option value="<?php echo (int) $cat['id']; ?>" <?php echo $post && (int) $post['category_id'] === (int) $cat['id'] ? 'selected' : ''; ?>>
                     <?php echo e($cat['name']); ?>
@@ -58,7 +58,7 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
             </select>
         </div>
         <div>
-            <label class="v-label">状态</label>
+            <label class="v-label"><?php echo e(admin_t('admin.common.status')); ?></label>
             <select name="status">
                 <?php foreach ($statusOptions as $optKey => $optName): ?>
                 <option value="<?php echo e($optKey); ?>" <?php echo $currentStatus === $optKey ? 'selected' : ''; ?>><?php echo e($optName); ?></option>
@@ -68,13 +68,13 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
         <div style="padding-top:24px">
             <label style="display:flex;gap:6px;align-items:center">
                 <input type="checkbox" name="is_page" value="1" <?php echo $isPageOn ? 'checked' : ''; ?>>
-                作为独立页面（不出现在文章列表）
+                <?php echo e(admin_t('admin.post.as_page')); ?>
             </label>
         </div>
         <div style="padding-top:24px<?php echo $isPageOn ? '' : ';display:none'; ?>" id="showInNavRow">
             <label style="display:flex;gap:6px;align-items:center">
                 <input type="checkbox" name="show_in_nav" value="1" <?php echo !empty($inNav) ? 'checked' : ''; ?>>
-                显示在侧边栏导航
+                <?php echo e(admin_t('admin.post.show_in_nav')); ?>
             </label>
         </div>
     </div>
@@ -82,11 +82,11 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
     <?php do_action('post_edit_fields', $post); /* 插件注入点：文章表单扩展字段（新建时 $post 为 null），输出需自带 .form-row 结构并自行转义 */ ?>
 
     <?php if ($postAudit && !Auth::check_cap('moderate_posts')): ?>
-    <div class="form-hint" style="margin-bottom:10px">站点已开启文章审核：提交的文章需管理员审核通过后才会发布。</div>
+    <div class="form-hint" style="margin-bottom:10px"><?php echo e(admin_t('admin.post.audit_hint')); ?></div>
     <?php endif; ?>
 
     <div class="layui-form-item">
-        <label class="v-label">正文（Markdown）</label>
+        <label class="v-label"><?php echo e(admin_t('admin.post.field_content')); ?></label>
         <?php // visibility:hidden + min-height：编辑器 JS/CSS 就绪前先隐身占位（防无样式 FOUC 与高度跳动），Vditor after 回调再显示 ?>
         <div id="vditor" style="<?php echo $vditorAvailable ? 'visibility:hidden;min-height:420px' : 'display:none'; ?>"></div>
         <textarea name="content" id="contentArea" class="layui-textarea" style="max-width:100%;min-height:360px;width:100%"
@@ -94,29 +94,29 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
     </div>
 
     <div class="layui-form-item">
-        <label class="v-label">摘要（可选，留空自动截取）</label>
+        <label class="v-label"><?php echo e(admin_t('admin.post.field_excerpt')); ?></label>
         <textarea name="excerpt" class="layui-textarea" style="max-width:100%;width:100%;min-height:60px"><?php echo $post ? e($post['excerpt']) : ''; ?></textarea>
     </div>
 
     <div class="layui-form-item">
-        <label class="v-label">封面图（仅可通过上传更换，支持 jpg/png/webp/gif，不超过 2MB）</label>
+        <label class="v-label"><?php echo e(admin_t('admin.post.field_cover')); ?></label>
         <div class="filter-bar" style="align-items:center">
             <img src="<?php echo ($post && $post['cover'] !== '') ? e(Router::base() . '/' . $post['cover']) : ''; ?>"
-                 id="coverPreview" alt="封面预览"
+                 id="coverPreview" alt="<?php echo e(admin_t('admin.post.cover_preview')); ?>"
                  style="display:<?php echo ($post && $post['cover'] !== '') ? 'inline-block' : 'none'; ?>;width:120px;height:80px;border-radius:4px;object-fit:cover">
             <?php // 封面路径为隐藏域：只接受上传接口回写的值，不提供手动填写入口 ?>
             <input type="hidden" name="cover" id="coverPath" value="<?php echo $post ? e($post['cover']) : ''; ?>">
             <?php if (Auth::check_cap('upload')): ?>
             <input type="file" id="coverFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
             <button type="button" class="layui-btn layui-btn-primary" id="coverUploadBtn">
-                <i class="layui-icon layui-icon-upload"></i> 上传封面
+                <i class="layui-icon layui-icon-upload"></i> <?php echo e(admin_t('admin.post.cover_upload')); ?>
             </button>
             <?php endif; ?>
         </div>
     </div>
 
-    <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-ok"></i> 保存</button>
-    <a class="layui-btn layui-btn-primary" href="<?php echo e(site_base_admin('post/list')); ?>">返回</a>
+    <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-ok"></i> <?php echo e(admin_t('admin.common.save')); ?></button>
+    <a class="layui-btn layui-btn-primary" href="<?php echo e(site_base_admin('post/list')); ?>"><?php echo e(admin_t('admin.common.back')); ?></a>
 </form>
 </div>
 
@@ -175,7 +175,7 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
                         return m;
                     })() } });
                 }
-                return JSON.stringify({ code: 1, msg: resp.msg || '上传失败' });
+                return JSON.stringify({ code: 1, msg: resp.msg || <?php echo json_out_script(admin_t('admin.upload.failed')); ?> });
             }
         },
         input: function (value) { area.value = value; },
@@ -226,11 +226,11 @@ $isPageOn = $post && (int) $post['is_page'] === 1;
                         var preview = document.getElementById('coverPreview');
                         preview.src = resp.data.url;
                         preview.style.display = 'inline-block';
-                        feedback('封面上传成功', true);
+                        feedback(<?php echo json_out_script(admin_t('admin.upload.cover_ok')); ?>, true);
                     } else {
-                        feedback(resp.msg || '上传失败', false);
+                        feedback(resp.msg || <?php echo json_out_script(admin_t('admin.upload.failed')); ?>, false);
                     }
-                } catch (err) { feedback('上传失败', false); }
+                } catch (err) { feedback(<?php echo json_out_script(admin_t('admin.upload.failed')); ?>, false); }
             }
         };
         xhr.send(fd);

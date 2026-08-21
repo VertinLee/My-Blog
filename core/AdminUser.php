@@ -21,7 +21,7 @@ class AdminUser
             ->orderBy('id', 'ASC')
             ->limit($perPage, ($page - 1) * $perPage)
             ->select();
-        Admin::render('用户管理', 'user_list', array(
+        Admin::render(admin_t('admin.menu.user'), 'user_list', array(
             'users' => $users, 'page' => $page, 'totalPages' => $totalPages,
             // 安装管理员受保护不可封禁/注销，视图需据此隐藏操作按钮
             'rootId' => self::rootAdminId(),
@@ -37,11 +37,11 @@ class AdminUser
         if ($id > 0) {
             $user = DB::query('users')->where('id', '=', $id)->first();
             if (!$user) {
-                flash_set('error', '用户不存在');
+                flash_set('error', admin_t('admin.user.not_found'));
                 redirect(site_base_admin('user/list'));
             }
         }
-        Admin::render($id > 0 ? '编辑用户' : '新增用户', 'user_edit', array(
+        Admin::render($id > 0 ? admin_t('admin.user.edit_title') : admin_t('admin.user.add'), 'user_edit', array(
             'user' => $user,
             // 安装管理员（安装程序创建的首位管理员）角色与状态不可变更
             'isRoot' => $user !== null && (int) $user['id'] === self::rootAdminId(),
@@ -73,26 +73,26 @@ class AdminUser
     {
         $username = input_text('username', '', 32, 'post');
         if (!preg_match('/^[A-Za-z0-9_]{3,32}$/', $username)) {
-            flash_set('error', '用户名须为 3-32 位字母、数字或下划线');
+            flash_set('error', admin_t('admin.user.username_format'));
             redirect(site_base_admin('user/edit'));
         }
         if (DB::query('users')->where('username', '=', $username)->value('id')) {
-            flash_set('error', '用户名已被占用');
+            flash_set('error', admin_t('admin.user.username_taken'));
             redirect(site_base_admin('user/edit'));
         }
         if ($email !== '' && DB::query('users')->where('email', '=', $email)->value('id')) {
-            flash_set('error', '邮箱已被占用');
+            flash_set('error', admin_t('admin.user.email_taken'));
             redirect(site_base_admin('user/edit'));
         }
         // 手机号作为身份核验凭据必须全局唯一
         if ($phone !== '' && DB::query('users')->where('phone', '=', $phone)->value('id')) {
-            flash_set('error', '该手机号已被占用');
+            flash_set('error', admin_t('admin.user.phone_taken'));
             redirect(site_base_admin('user/edit'));
         }
         $password = self::generateStrongPassword();
         $err = Auth::validate_password_strength($password, $username);
         if ($err !== '') {
-            flash_set('error', '初始密码生成异常：' . $err);
+            flash_set('error', admin_t('admin.user.gen_pwd_error', array($err)));
             redirect(site_base_admin('user/edit'));
         }
         $newId = DB::insert('users', array(
@@ -112,7 +112,7 @@ class AdminUser
         blog_log('user', 'user.create', 'success', array(
             'user_id' => $newId, 'username' => $username, 'role' => $role,
         ));
-        flash_set('success', '用户已创建。初始密码（仅显示一次，请通过安全渠道告知用户）：' . $password);
+        flash_set('success', admin_t('admin.user.created_with_pwd', array($password)));
         redirect(site_base_admin('user/list'));
     }
 
@@ -121,7 +121,7 @@ class AdminUser
     {
         $user = DB::query('users')->where('id', '=', $id)->first();
         if (!$user) {
-            flash_set('error', '用户不存在');
+            flash_set('error', admin_t('admin.user.not_found'));
             redirect(site_base_admin('user/list'));
         }
         $isSelf = (int) $user['id'] === Auth::id();
@@ -138,36 +138,36 @@ class AdminUser
                 blog_log('user', 'user.update', 'fail', array(
                     'target_user_id' => $id, 'reason' => 'operator_password_wrong',
                 ));
-                flash_set('error', '重置密码或修改邮箱/手机须填写您（操作者）的当前密码');
+                flash_set('error', admin_t('admin.user.operator_pwd_required'));
                 redirect(site_base_admin('user/edit&id=' . $id));
             }
         }
         // 自我保护：不得禁用/降权自己，避免管理员把自己锁出后台
         if ($isSelf && ($status !== 1 || $role !== 'admin')) {
-            flash_set('error', '不能禁用或变更自己的角色');
+            flash_set('error', admin_t('admin.user.self_protect'));
             redirect(site_base_admin('user/edit&id=' . $id));
         }
         // 安装管理员保护：安装程序创建的首位管理员不得被降权或禁用，防止误操作
         if ((int) $user['id'] === self::rootAdminId() && ($role !== 'admin' || $status !== 1)) {
-            flash_set('error', '安装管理员账号不可降权或禁用');
+            flash_set('error', admin_t('admin.user.root_protect'));
             redirect(site_base_admin('user/edit&id=' . $id));
         }
         // 最后一位在职管理员不得被降权或禁用
         if ($user['role'] === 'admin' && ($role !== 'admin' || $status !== 1) && self::adminCount() <= 1) {
-            flash_set('error', '系统至少需要保留一位管理员');
+            flash_set('error', admin_t('admin.user.last_admin'));
             redirect(site_base_admin('user/edit&id=' . $id));
         }
         if ($email !== '' && $email !== $user['email']) {
             $exists = DB::query('users')->where('email', '=', $email)->where('id', '!=', $id)->value('id');
             if ($exists) {
-                flash_set('error', '邮箱已被占用');
+                flash_set('error', admin_t('admin.user.email_taken'));
                 redirect(site_base_admin('user/edit&id=' . $id));
             }
         }
         if ($phone !== '' && $phone !== $user['phone']) {
             $exists = DB::query('users')->where('phone', '=', $phone)->where('id', '!=', $id)->value('id');
             if ($exists) {
-                flash_set('error', '该手机号已被占用');
+                flash_set('error', admin_t('admin.user.phone_taken'));
                 redirect(site_base_admin('user/edit&id=' . $id));
             }
         }
@@ -201,12 +201,12 @@ class AdminUser
                 'password_changed_at' => $forceChange ? '2000-01-01 00:00:00' : now(),
             ), array('id' => $id));
             blog_log('user', 'user.password_reset', 'success', array('target_user_id' => $id));
-            flash_set('success', '用户已保存，密码已重置');
+            flash_set('success', admin_t('admin.user.saved_pwd_reset'));
         } else {
             if ($forceChange) {
                 DB::update('users', array('password_changed_at' => '2000-01-01 00:00:00'), array('id' => $id));
             }
-            flash_set('success', '用户已保存');
+            flash_set('success', admin_t('admin.user.saved'));
         }
         redirect(site_base_admin('user/list'));
     }
@@ -219,7 +219,7 @@ class AdminUser
         if ($id > 0) {
             DB::update('users', array('locked_until' => null, 'login_fail' => 0), array('id' => $id));
             blog_log('user', 'user.unlock', 'success', array('target_user_id' => $id));
-            flash_set('success', '已解除锁定');
+            flash_set('success', admin_t('admin.user.unlocked'));
         }
         redirect(site_base_admin('user/list'));
     }
@@ -230,25 +230,25 @@ class AdminUser
         Auth::require_cap('manage_users');
         $user = self::targetUser(input_int('id', 0, 'post'));
         if (!$user) {
-            flash_set('error', '用户不存在');
+            flash_set('error', admin_t('admin.user.not_found'));
             redirect(site_base_admin('user/list'));
         }
         $id = (int) $user['id'];
         if ($id === Auth::id()) {
-            flash_set('error', '不能封禁自己');
+            flash_set('error', admin_t('admin.user.self_ban'));
             redirect(site_base_admin('user/list'));
         }
         if ($id === self::rootAdminId()) {
-            flash_set('error', '安装管理员账号不可封禁');
+            flash_set('error', admin_t('admin.user.root_ban'));
             redirect(site_base_admin('user/list'));
         }
         if ($user['role'] === 'admin' && self::adminCount() <= 1) {
-            flash_set('error', '系统至少需要保留一位可用管理员');
+            flash_set('error', admin_t('admin.user.last_admin_avail'));
             redirect(site_base_admin('user/list'));
         }
         DB::update('users', array('is_banned' => 1), array('id' => $id));
         blog_log('user', 'user.ban', 'success', array('target_user_id' => $id));
-        flash_set('success', '已封禁该用户，其将无法登录');
+        flash_set('success', admin_t('admin.user.banned'));
         redirect(site_base_admin('user/list'));
     }
 
@@ -260,7 +260,7 @@ class AdminUser
         if ($id > 0) {
             DB::update('users', array('is_banned' => 0), array('id' => $id));
             blog_log('user', 'user.unban', 'success', array('target_user_id' => $id));
-            flash_set('success', '已解除封禁');
+            flash_set('success', admin_t('admin.user.unbanned'));
         }
         redirect(site_base_admin('user/list'));
     }
@@ -271,25 +271,25 @@ class AdminUser
         Auth::require_cap('manage_users');
         $user = self::targetUser(input_int('id', 0, 'post'));
         if (!$user) {
-            flash_set('error', '用户不存在');
+            flash_set('error', admin_t('admin.user.not_found'));
             redirect(site_base_admin('user/list'));
         }
         $id = (int) $user['id'];
         if ($id === Auth::id()) {
-            flash_set('error', '不能注销自己');
+            flash_set('error', admin_t('admin.user.self_deregister'));
             redirect(site_base_admin('user/list'));
         }
         if ($id === self::rootAdminId()) {
-            flash_set('error', '安装管理员账号不可注销');
+            flash_set('error', admin_t('admin.user.root_deregister'));
             redirect(site_base_admin('user/list'));
         }
         if ($user['role'] === 'admin' && self::adminCount() <= 1) {
-            flash_set('error', '系统至少需要保留一位可用管理员');
+            flash_set('error', admin_t('admin.user.last_admin_avail'));
             redirect(site_base_admin('user/list'));
         }
         DB::update('users', array('is_deleted' => 1), array('id' => $id));
         blog_log('user', 'user.deregister', 'success', array('target_user_id' => $id));
-        flash_set('success', '已注销该用户，其历史内容将以“用户已注销”匿名展示');
+        flash_set('success', admin_t('admin.user.deregistered'));
         redirect(site_base_admin('user/list'));
     }
 
@@ -301,7 +301,7 @@ class AdminUser
         if ($id > 0) {
             DB::update('users', array('is_deleted' => 0), array('id' => $id));
             blog_log('user', 'user.restore', 'success', array('target_user_id' => $id));
-            flash_set('success', '已恢复该用户');
+            flash_set('success', admin_t('admin.user.restored'));
         }
         redirect(site_base_admin('user/list'));
     }
