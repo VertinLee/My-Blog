@@ -1,0 +1,172 @@
+<?php
+/**
+ * 安装向导语言包：中英双语文案（install.{步骤}.{语义} 键规范）
+ * 独立于后台语言包体系（core/langs + assets/langs）：安装期无数据库，Lang 类不可用；
+ * 该文件随安装程序发布、不属于可手动删除的资产，故安装器文案不寄生 assets/langs。
+ */
+defined('APP_BOOT') or exit;
+
+return array(
+    'zh_CN' => array(
+        /* ---------- 通用与步骤名 ---------- */
+        'install.common.title'           => '安装向导 - 第 %s 步',
+        'install.common.heading'         => '博客系统安装向导',
+        'install.common.csrf_fail'       => 'CSRF 校验失败，请返回重试',
+        'install.step.1'                 => '环境自检',
+        'install.step.2'                 => '数据库配置',
+        'install.step.3'                 => '管理员信息',
+        'install.step.4'                 => '安装完成',
+
+        /* ---------- 步骤一：环境自检 ---------- */
+        'install.env.php_version'        => 'PHP 版本 ≥ 7.4',
+        'install.env.php_version_info'   => '当前 %s',
+        'install.env.ext'                => '扩展 %s',
+        'install.env.ext_ok'             => '已加载',
+        'install.env.ext_missing'        => '未加载',
+        'install.env.root_writable'      => '站点根目录可写（生成 config.php）',
+        'install.env.uploads_writable'   => 'uploads/ 目录可写',
+        'install.env.writable'           => '可写',
+        'install.env.not_writable'       => '不可写',
+        'install.env.rewrite_name'       => 'URL 重写能力',
+        'install.env.rewrite_ok'         => 'mod_rewrite 已加载',
+        'install.env.rewrite_no'         => 'mod_rewrite 未加载（可回退 index.php?r= 模式）',
+        'install.env.rewrite_na'         => '非 Apache 环境（Nginx 请按 nginx.conf.example 配置；未配置时可回退 index.php?r= 模式）',
+        'install.env.col_name'           => '检查项',
+        'install.env.col_result'         => '结果',
+        'install.env.col_info'           => '说明',
+        'install.env.pass'               => '✔ 通过',
+        'install.env.fail'               => '✘ 不通过',
+        'install.env.next'               => '下一步：数据库配置',
+        'install.env.blocked'            => '环境自检未通过，请先解决上述红色项后刷新本页。',
+
+        /* ---------- 步骤二：数据库 ---------- */
+        'install.db.host'                => '数据库地址',
+        'install.db.port'                => '端口',
+        'install.db.name'                => '数据库名',
+        'install.db.user'                => '用户名',
+        'install.db.user_hint'           => '遵循最小权限原则：仅需 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/ALTER，禁止使用 root',
+        'install.db.pass'                => '密码',
+        'install.db.pass_saved'          => '已暂存，留空则沿用',
+        'install.db.prefix'              => '表前缀（仅字母数字下划线）',
+        'install.db.test'                => '测试连接',
+        'install.db.next'                => '下一步：管理员信息',
+        'install.db.connect_ok'          => '数据库连接成功',
+        'install.db.connect_fail'        => '数据库连接失败：',
+
+        /* ---------- 步骤三：管理员 ---------- */
+        'install.admin.need_db'          => '请先完成数据库配置',
+        'install.admin.site_name'        => '站点名称',
+        'install.admin.motto'            => '一句话座右铭（可选）',
+        'install.admin.username'         => '管理员用户名',
+        'install.admin.nickname'         => '昵称（可选）',
+        'install.admin.password'         => '管理员密码',
+        'install.admin.password_hint'    => '8-64 位；大写字母/小写字母/数字/特殊字符至少三类；不含用户名；不得为常见弱口令',
+        'install.admin.password2'        => '确认密码',
+        'install.admin.email'            => '邮箱',
+        'install.admin.phone'            => '手机号（可选）',
+        'install.admin.locale_label'     => '后台语言',
+        'install.admin.locale_hint'      => '安装后可在后台“站点设置”中随时修改；其余语言包放入 assets/langs/ 后自动可选',
+        'install.admin.rewrite_label'    => '已配置 URL 伪静态重写（未配置请取消勾选，将使用 index.php?r= 回退模式）',
+        'install.admin.submit'           => '开始安装',
+        'install.admin.username_invalid' => '用户名为 3-32 位字母、数字或下划线',
+        'install.admin.password_mismatch'=> '两次输入的密码不一致',
+        'install.admin.email_invalid'    => '邮箱格式不正确',
+        'install.admin.phone_invalid'    => '手机号格式不正确',
+
+        /* ---------- 执行安装 ---------- */
+        'install.do.fail'                => '安装失败：',
+        'install.do.write_config_fail'   => '写入 config.php 失败，请检查站点根目录权限',
+        'install.do.default_site_name'   => '我的博客',
+        'install.do.default_category'    => '默认分类',
+        'install.do.default_category_desc' => '站点默认分类',
+        'install.do.welcome_title'       => '你好，世界',
+        'install.do.welcome_post'        => "# 欢迎使用本博客系统\n\n这是安装程序创建的第一篇文章，你可以在后台编辑或删除它。\n\n- Markdown 编写\n- 本地化静态资源\n- 等保二级安全设计",
+
+        /* ---------- 步骤四：完成 ---------- */
+        'install.done.msg'               => '安装完成！请牢记管理员账号。',
+        'install.done.tip'               => '安全提示：install/ 目录已被 install.lock 锁定；建议删除或妥善保管安装程序。',
+        'install.done.front'             => '访问前台首页',
+        'install.done.admin'             => '进入后台登录',
+    ),
+    'en_US' => array(
+        /* ---------- Common & step names ---------- */
+        'install.common.title'           => 'Setup Wizard - Step %s',
+        'install.common.heading'         => 'Blog System Setup',
+        'install.common.csrf_fail'       => 'CSRF check failed, please go back and retry',
+        'install.step.1'                 => 'Environment Check',
+        'install.step.2'                 => 'Database',
+        'install.step.3'                 => 'Administrator',
+        'install.step.4'                 => 'Done',
+
+        /* ---------- Step 1: environment check ---------- */
+        'install.env.php_version'        => 'PHP version ≥ 7.4',
+        'install.env.php_version_info'   => 'Current %s',
+        'install.env.ext'                => 'Extension %s',
+        'install.env.ext_ok'             => 'Loaded',
+        'install.env.ext_missing'        => 'Missing',
+        'install.env.root_writable'      => 'Site root writable (to generate config.php)',
+        'install.env.uploads_writable'   => 'uploads/ directory writable',
+        'install.env.writable'           => 'Writable',
+        'install.env.not_writable'       => 'Not writable',
+        'install.env.rewrite_name'       => 'URL rewrite capability',
+        'install.env.rewrite_ok'         => 'mod_rewrite loaded',
+        'install.env.rewrite_no'         => 'mod_rewrite not loaded (index.php?r= fallback mode available)',
+        'install.env.rewrite_na'         => 'Not an Apache environment (for Nginx see nginx.conf.example; index.php?r= fallback mode available if unconfigured)',
+        'install.env.col_name'           => 'Check Item',
+        'install.env.col_result'         => 'Result',
+        'install.env.col_info'           => 'Details',
+        'install.env.pass'               => '✔ Pass',
+        'install.env.fail'               => '✘ Fail',
+        'install.env.next'               => 'Next: Database Configuration',
+        'install.env.blocked'            => 'Environment check failed. Fix the red items above, then refresh this page.',
+
+        /* ---------- Step 2: database ---------- */
+        'install.db.host'                => 'Database Host',
+        'install.db.port'                => 'Port',
+        'install.db.name'                => 'Database Name',
+        'install.db.user'                => 'Username',
+        'install.db.user_hint'           => 'Least privilege: only SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/ALTER are required; do not use root',
+        'install.db.pass'                => 'Password',
+        'install.db.pass_saved'          => 'Saved; leave blank to keep it',
+        'install.db.prefix'              => 'Table prefix (letters, digits, underscores only)',
+        'install.db.test'                => 'Test Connection',
+        'install.db.next'                => 'Next: Administrator',
+        'install.db.connect_ok'          => 'Database connection succeeded',
+        'install.db.connect_fail'        => 'Database connection failed: ',
+
+        /* ---------- Step 3: administrator ---------- */
+        'install.admin.need_db'          => 'Please complete the database configuration first',
+        'install.admin.site_name'        => 'Site Name',
+        'install.admin.motto'            => 'Tagline (optional)',
+        'install.admin.username'         => 'Admin Username',
+        'install.admin.nickname'         => 'Nickname (optional)',
+        'install.admin.password'         => 'Admin Password',
+        'install.admin.password_hint'    => '8-64 characters; at least three of uppercase/lowercase/digits/special characters; must not contain the username; must not be a common weak password',
+        'install.admin.password2'        => 'Confirm Password',
+        'install.admin.email'            => 'Email',
+        'install.admin.phone'            => 'Phone (optional)',
+        'install.admin.locale_label'     => 'Admin Language',
+        'install.admin.locale_hint'      => 'Changeable later in Settings; additional language packs placed in assets/langs/ become selectable automatically',
+        'install.admin.rewrite_label'    => 'URL rewrite configured (uncheck if not; index.php?r= fallback mode will be used)',
+        'install.admin.submit'           => 'Install',
+        'install.admin.username_invalid' => 'Username must be 3-32 letters, digits or underscores',
+        'install.admin.password_mismatch'=> 'The two passwords do not match',
+        'install.admin.email_invalid'    => 'Invalid email format',
+        'install.admin.phone_invalid'    => 'Invalid phone number format',
+
+        /* ---------- Installation ---------- */
+        'install.do.fail'                => 'Installation failed: ',
+        'install.do.write_config_fail'   => 'Failed to write config.php; please check the site root permissions',
+        'install.do.default_site_name'   => 'My Blog',
+        'install.do.default_category'    => 'Default Category',
+        'install.do.default_category_desc' => 'Default site category',
+        'install.do.welcome_title'       => 'Hello, World',
+        'install.do.welcome_post'        => "# Welcome to My Blog\n\nThis is the first post created by the installer. You can edit or delete it in the admin panel.\n\n- Markdown writing\n- Localized static assets\n- MLPS 2.0 security design",
+
+        /* ---------- Step 4: done ---------- */
+        'install.done.msg'               => 'Installation complete! Please remember your admin account.',
+        'install.done.tip'               => 'Security note: the install/ directory has been locked by install.lock; consider removing or safekeeping the installer.',
+        'install.done.front'             => 'Visit Home',
+        'install.done.admin'             => 'Go to Admin Login',
+    ),
+);

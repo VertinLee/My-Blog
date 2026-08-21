@@ -202,13 +202,15 @@ id / name / slug UNIQUE / description / sort。
 
 流程为向导式四步，`install/index.php` 分发；已安装（存在 `install/install.lock` 或根目录 `config.php`，双重守卫）时一律 301 跳转首页，防止锁文件被误删后经重装覆盖 `config.php` 导致站点被接管。
 
+安装向导界面中英双语：文案包为 `install/langs.php`（`install.{步骤}.{语义}` 键，随安装程序发布），经 `ins_t()` 查询（当前语言 → 中文基线 → 原样返回键，`%s` 占位）；界面语言由 `ins_lang()` 决定，优先级为 `?lang=` 显式切换（白名单二值并写 Session）→ Session 已存选择 → 浏览器 `Accept-Language` 首选检测（中文→zh_CN，否则 en_US）。该机制独立于后台 `Lang` 体系——安装期无数据库（`Option` 不可用），且 `assets/langs/` 语言包属用户可删资产，安装器文案不寄生于其中。
+
 1. **环境自检**（不通过则禁止下一步，红绿清单展示）：
    - PHP ≥ 7.4；
    - 扩展：pdo_mysql、mbstring、openssl、json、curl、fileinfo、gd；
    - 可写性：站点根目录（生成 config.php）、`uploads/`；
    - 重写能力：Apache 下探测 mod_rewrite；Nginx 下展示 `nginx.conf.example` 配置指引。
 2. **数据库配置**：连接地址、端口（默认 3306）、账户名、数据库名、密码、**表前缀**（默认 `cb_`，仅允许字母数字下划线）。提供"测试连接"按钮（PDO 实测并回报错误信息）。
-3. **管理员信息**：用户名、昵称、密码（二次确认；**服务端强制口令复杂度校验，规则同 §6.1**：≥8 位、四类字符至少三类、不得含用户名、不得命中弱口令黑名单）、邮箱、手机号。写入 users 表（role=admin，`password_changed_at` 初始化为当前时间）。
+3. **管理员信息**：用户名、昵称、密码（二次确认；**服务端强制口令复杂度校验，规则同 §6.1**：≥8 位、四类字符至少三类、不得含用户名、不得命中弱口令黑名单）、邮箱、手机号、**后台语言**（`admin_locale`，下拉可选项 = 中文基线 + `assets/langs/` 扫描结果，缺省跟随安装向导界面语言，非法值回退 `zh_CN`）。写入 users 表（role=admin，`password_changed_at` 初始化为当前时间）。
 4. **执行安装**：按 §2 建全部表（带前缀）→ 写入默认 options，其中安全策略默认项：`log_retention_days=180`、`login_max_fail=5`、`login_lock_minutes=10`、`session_timeout_minutes=30`、`pwd_expire_enabled=0`（**密码过期默认关闭**）、`pwd_expire_days=90`、`pwd_history_count=0`（密码历史默认关闭）、`ip_header_enabled=0`（**自定义 IP 标头默认关闭**）、`ip_header_name='X-Forwarded-For'`（CDN 真实 IP 标头名，见 §6.4）、`debug=0`；另有站点名、审核开关默认关、默认模板 default、启用插件空列表 → 生成 `config.php`（DB 配置 + 随机 64 位密钥，用于 CSRF/Session 加固）→ 写 `install/install.lock` → 提示安装完成。
 
 ---
