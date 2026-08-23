@@ -57,7 +57,7 @@ class AdminLog
         ));
 
         list($fFrom, $fTo) = filter_date_range();
-        Admin::render('日志中心', 'log_list', array(
+        Admin::render(admin_t('admin.menu.log'), 'log_list', array(
             'logs' => $logs, 'page' => $page, 'totalPages' => $totalPages, 'total' => $total,
             'categories' => self::categories(),
             'fCategory' => input_enum('category', self::categories(), 'all', 'get'),
@@ -80,7 +80,7 @@ class AdminLog
         $user = Auth::user();
         if ($password === '' || !password_verify($password, $user['password'])) {
             blog_log('security', 'log.export', 'fail', array('reason' => 'password_wrong'));
-            flash_set('error', '导出审计日志须填写正确的当前密码');
+            flash_set('error', admin_t('admin.log.export_pwd_wrong'));
             redirect(site_base_admin('log/list'));
         }
         list($expFrom, $expTo) = filter_date_range();
@@ -96,7 +96,11 @@ class AdminLog
         // UTF-8 BOM 便于 Excel 直接打开
         echo "\xEF\xBB\xBF";
         $out = fopen('php://output', 'w');
-        fputcsv($out, array('ID', '时间', '用户ID', '角色', '类别', '动作', '结果', 'IP', 'UA', '详情'));
+        fputcsv($out, array(
+            'ID', admin_t('admin.log.col_time'), admin_t('admin.log.csv_user_id'),
+            admin_t('admin.user.col_role'), admin_t('admin.log.col_category'), admin_t('admin.log.col_action'),
+            admin_t('admin.log.col_result'), 'IP', 'UA', admin_t('admin.log.col_detail'),
+        ));
         foreach ($logs as $log) {
             fputcsv($out, array(
                 csv_safe($log['id']), csv_safe($log['created_at']), csv_safe($log['user_id']),

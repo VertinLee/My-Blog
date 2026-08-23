@@ -8,13 +8,19 @@
         return;
     }
 
+    // 文案覆盖：后台语言包经 window.CB_VERIFY.msg 注入；缺省保持中文（前台不变）
+    var MSG = window.CB_VERIFY.msg || {};
+    function msg(key, def) {
+        return MSG[key] || def;
+    }
+
     var buttons = document.querySelectorAll('[data-scene][data-channel][data-target]');
 
     Array.prototype.forEach.call(buttons, function (btn) {
         btn.addEventListener('click', function () {
             var targetInput = document.querySelector(btn.getAttribute('data-target'));
             if (!targetInput || !targetInput.value) {
-                alert('请先填写邮箱或手机号');
+                alert(msg('fill_target', '请先填写邮箱或手机号'));
                 return;
             }
             var body = 'scene=' + encodeURIComponent(btn.getAttribute('data-scene'))
@@ -34,17 +40,17 @@
                 try {
                     resp = JSON.parse(xhr.responseText);
                 } catch (err) {
-                    resp = { code: 1, msg: '网络异常，请重试' };
+                    resp = { code: 1, msg: msg('network_error', '网络异常，请重试') };
                 }
                 if (resp.code === 0) {
                     alert(resp.msg);
                     var left = 60;
                     var timer = setInterval(function () {
                         left -= 1;
-                        btn.textContent = left + ' 秒后重发';
+                        btn.textContent = msg('retry_in', '%s 秒后重发').replace('%s', left);
                         if (left <= 0) {
                             clearInterval(timer);
-                            btn.textContent = '发送验证码';
+                            btn.textContent = msg('send', '发送验证码');
                             btn.disabled = false;
                         }
                     }, 1000);

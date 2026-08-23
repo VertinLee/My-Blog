@@ -33,7 +33,7 @@ class AdminComment
         }
 
         list($fFrom, $fTo) = filter_date_range();
-        Admin::render('评论管理', 'comment_list', array(
+        Admin::render(admin_t('admin.menu.comment'), 'comment_list', array(
             'comments' => $comments, 'status' => $status, 'page' => $page,
             'totalPages' => $totalPages, 'total' => $total,
             'users' => $users, 'posts' => $posts,
@@ -94,7 +94,7 @@ class AdminComment
             $newStatus = $decision === 'approve' ? 'published' : 'trash';
             DB::update('comments', array('status' => $newStatus), array('id' => $id));
             blog_log('comment', 'comment.audit', 'success', array('comment_id' => $id, 'decision' => $decision));
-            flash_set('success', $decision === 'approve' ? '评论已通过' : '评论已驳回');
+            flash_set('success', $decision === 'approve' ? admin_t('admin.comment.approved') : admin_t('admin.comment.rejected'));
         }
         redirect(site_base_admin('comment/list&status=pending'));
     }
@@ -107,7 +107,7 @@ class AdminComment
         if ($id > 0) {
             DB::update('comments', array('status' => 'trash'), array('id' => $id));
             blog_log('comment', 'comment.delete', 'success', array('comment_id' => $id));
-            flash_set('success', '评论已移入回收站');
+            flash_set('success', admin_t('admin.comment.trashed'));
         }
         redirect(site_base_admin('comment/list'));
     }
@@ -121,7 +121,7 @@ class AdminComment
             $status = Option::get('comment_audit', '0') === '1' ? 'pending' : 'published';
             DB::update('comments', array('status' => $status), array('id' => $id, 'status' => 'trash'));
             blog_log('comment', 'comment.restore', 'success', array('comment_id' => $id, 'status' => $status));
-            flash_set('success', $status === 'pending' ? '评论已恢复，待审核通过后发布' : '评论已恢复');
+            flash_set('success', $status === 'pending' ? admin_t('admin.comment.restored_pending') : admin_t('admin.comment.restored'));
         }
         redirect(site_base_admin('comment/list&status=trash'));
     }

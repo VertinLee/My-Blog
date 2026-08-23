@@ -16,6 +16,18 @@ function e($value)
 }
 
 /**
+ * 后台文案翻译（Lang::t 简写）：当前语言包缺失键时自动降级中文基线
+ *
+ * @param string $key  语义键（admin.{模块}.{语义}）
+ * @param array  $args 占位参数（%s 顺序替换）
+ * @return string
+ */
+function admin_t($key, array $args = array())
+{
+    return Lang::t($key, $args);
+}
+
+/**
  * 是否 HTTPS 环境
  *
  * @return bool

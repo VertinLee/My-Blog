@@ -10,7 +10,7 @@ class AdminTheme
     public static function listAction()
     {
         Auth::require_cap('manage_themes');
-        Admin::render('模板管理', 'theme_list', array(
+        Admin::render(admin_t('admin.menu.theme'), 'theme_list', array(
             'themes' => Theme::discover(),
             'active' => Theme::current(),
             'uploadLimit' => ZipSafe::uploadLimit(),
@@ -24,11 +24,11 @@ class AdminTheme
         $dir = input_text('dir', '', 64, 'post');
         $themes = Theme::discover();
         if (!preg_match('/^[a-z0-9_-]{1,64}$/', $dir) || !isset($themes[$dir])) {
-            flash_set('error', '主题不存在');
+            flash_set('error', admin_t('admin.theme.not_found'));
         } else {
             Option::set('active_theme', $dir);
             blog_log('template', 'theme.activate', 'success', array('theme' => $dir));
-            flash_set('success', '已启用主题：' . $themes[$dir]['name']);
+            flash_set('success', admin_t('admin.theme.activated', array($themes[$dir]['name'])));
         }
         redirect(site_base_admin('theme/list'));
     }
@@ -39,20 +39,20 @@ class AdminTheme
         Auth::require_cap('manage_themes');
         $dir = input_text('dir', '', 64, 'post');
         if (!preg_match('/^[a-z0-9_-]{1,64}$/', $dir) || $dir === 'default') {
-            flash_set('error', '该主题不可删除');
+            flash_set('error', admin_t('admin.theme.not_deletable'));
             redirect(site_base_admin('theme/list'));
         }
         if ($dir === Theme::current()) {
-            flash_set('error', '不能删除当前启用的主题');
+            flash_set('error', admin_t('admin.theme.cannot_delete_active'));
             redirect(site_base_admin('theme/list'));
         }
         $path = Theme::dirOf($dir);
         if (is_dir($path)) {
             ZipSafe::removeDir($path);
             blog_log('template', 'theme.delete', 'success', array('theme' => $dir));
-            flash_set('success', '主题已删除');
+            flash_set('success', admin_t('admin.theme.deleted'));
         } else {
-            flash_set('error', '主题目录不存在');
+            flash_set('error', admin_t('admin.theme.dir_missing'));
         }
         redirect(site_base_admin('theme/list'));
     }
@@ -64,10 +64,10 @@ class AdminTheme
         $dir = input_text('dir', '', 64, 'get');
         $themes = Theme::discover();
         if (!preg_match('/^[a-z0-9_-]{1,64}$/', $dir) || !isset($themes[$dir])) {
-            flash_set('error', '主题不存在');
+            flash_set('error', admin_t('admin.theme.not_found'));
             redirect(site_base_admin('theme/list'));
         }
-        Admin::render('主题设置', 'theme_setting', array(
+        Admin::render(admin_t('admin.theme.setting_page'), 'theme_setting', array(
             'dir'      => $dir,
             'name'     => $themes[$dir]['name'],
             'schema'   => Theme::settingsSchema($dir),
@@ -82,7 +82,7 @@ class AdminTheme
         $dir = input_text('dir', '', 64, 'post');
         $themes = Theme::discover();
         if (!preg_match('/^[a-z0-9_-]{1,64}$/', $dir) || !isset($themes[$dir])) {
-            flash_set('error', '主题不存在');
+            flash_set('error', admin_t('admin.theme.not_found'));
             redirect(site_base_admin('theme/list'));
         }
         $schema = Theme::settingsSchema($dir);
@@ -101,7 +101,7 @@ class AdminTheme
         }
         Option::set('theme_settings_' . $dir, json_encode($settings, JSON_UNESCAPED_UNICODE));
         blog_log('template', 'theme.setting', 'success', array('theme' => $dir));
-        flash_set('success', '主题设置已保存');
+        flash_set('success', admin_t('admin.theme.setting_saved'));
         redirect(site_base_admin('theme/setting&dir=' . rawurlencode($dir)));
     }
 
@@ -114,7 +114,7 @@ class AdminTheme
     {
         Auth::require_cap('manage_themes');
         if (empty($_FILES['theme_zip'])) {
-            flash_set('error', '请选择要上传的 zip 文件');
+            flash_set('error', admin_t('admin.theme.zip_required'));
             redirect(site_base_admin('theme/list'));
         }
         $file = $_FILES['theme_zip'];
@@ -127,7 +127,7 @@ class AdminTheme
         $name = strtolower($file['name']);
         $target = preg_replace('/[^a-z0-9_-]/', '', substr($name, 0, -4));
         if ($target === '' || $target === 'default') {
-            flash_set('error', '主题目录名非法或为保留主题');
+            flash_set('error', admin_t('admin.theme.dir_invalid'));
             redirect(site_base_admin('theme/list'));
         }
         $dest = Theme::dirOf($target);
@@ -135,7 +135,7 @@ class AdminTheme
         // 启用中的主题禁止覆盖更新：替换正在执行的 PHP 模板风险不可控，须先切换到其他主题
         if ($isUpdate && $target === Theme::current()) {
             blog_log('template', 'theme.update', 'fail', array('theme' => $target, 'reason' => 'active_theme'));
-            flash_set('error', '不能覆盖更新当前启用的主题，请先切换到其他主题');
+            flash_set('error', admin_t('admin.theme.no_overwrite_active'));
             redirect(site_base_admin('theme/list'));
         }
 
@@ -145,7 +145,7 @@ class AdminTheme
             blog_log('template', $isUpdate ? 'theme.update' : 'theme.upload', 'fail', array(
                 'theme' => $target, 'reason' => $err,
             ));
-            flash_set('error', $err === 'zip 包缺少必需的文件' ? '主题包缺少 style.css' : $err);
+            flash_set('error', $err === 'zip 包缺少必需的文件' ? admin_t('admin.theme.zip_no_style') : $err);
             redirect(site_base_admin('theme/list'));
         }
 
@@ -158,7 +158,7 @@ class AdminTheme
         // 扁平化后 style.css 必须落在根目录，否则主题无法被发现
         if (!is_file($tmp . '/style.css')) {
             ZipSafe::removeDir($tmp);
-            flash_set('error', '主题包缺少 style.css');
+            flash_set('error', admin_t('admin.theme.zip_no_style'));
             redirect(site_base_admin('theme/list'));
         }
         // 覆盖更新需校验主题身份：新旧包均显式声明 Theme Name 时必须一致，防止同名异主题被误覆盖
@@ -168,7 +168,7 @@ class AdminTheme
             if ($newMeta['name'] !== '' && $oldMeta['name'] !== '' && $newMeta['name'] !== $oldMeta['name']) {
                 ZipSafe::removeDir($tmp);
                 blog_log('template', 'theme.update', 'fail', array('theme' => $target, 'reason' => 'name_mismatch'));
-                flash_set('error', '包内 Theme Name 与现有主题不一致，已拒绝覆盖');
+                flash_set('error', admin_t('admin.theme.name_mismatch'));
                 redirect(site_base_admin('theme/list'));
             }
         }
@@ -184,7 +184,7 @@ class AdminTheme
         blog_log('template', $isUpdate ? 'theme.update' : 'theme.upload', 'success', array(
             'theme' => $target, 'version' => $newMeta['version'],
         ));
-        flash_set('success', ($isUpdate ? '主题已覆盖更新：' : '主题已上传：') . $target);
+        flash_set('success', $isUpdate ? admin_t('admin.theme.updated', array($target)) : admin_t('admin.theme.uploaded', array($target)));
         redirect(site_base_admin('theme/list'));
     }
 }

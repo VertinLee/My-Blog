@@ -4,7 +4,12 @@
  * 日期范围经 laydate 选择，选中后由 admin.js 拆回隐藏域 from/to 提交
  */
 defined('APP_BOOT') or exit;
-$tabs = array('all' => '全部', 'pending' => '待审核', 'published' => '已公开', 'trash' => '回收站');
+$tabs = array(
+    'all'       => admin_t('admin.common.all'),
+    'pending'   => admin_t('admin.comment.status_pending'),
+    'published' => admin_t('admin.comment.status_published'),
+    'trash'     => admin_t('admin.comment.status_trash'),
+);
 // 范围框回显文本：双侧均有值时拼为范围，否则回显已有单侧值
 if ($fFrom !== '' && $fTo !== '') {
     $rangeText = $fFrom . ' ~ ' . $fTo;
@@ -32,25 +37,25 @@ $extraQuery = 'author=' . urlencode($fAuthor) . '&post_id=' . (int) $fPostId
     <form method="get" action="<?php echo e(site_base_admin('comment/list')); ?>" class="layui-form filter-bar">
         <input type="hidden" name="m" value="comment/list">
         <input type="hidden" name="status" value="<?php echo e($status); ?>">
-        <input type="text" name="author" placeholder="作者用户名/昵称或 ID" value="<?php echo e($fAuthor); ?>" class="layui-input" style="width:180px">
-        <input type="text" name="post_id" placeholder="文章 ID" value="<?php echo $fPostId > 0 ? (string) (int) $fPostId : ''; ?>" class="layui-input" style="width:110px">
+        <input type="text" name="author" placeholder="<?php echo e(admin_t('admin.comment.filter_author')); ?>" value="<?php echo e($fAuthor); ?>" class="layui-input" style="width:180px">
+        <input type="text" name="post_id" placeholder="<?php echo e(admin_t('admin.comment.filter_post_id')); ?>" value="<?php echo $fPostId > 0 ? (string) (int) $fPostId : ''; ?>" class="layui-input" style="width:110px">
         <input type="hidden" name="from" id="cmtDateFrom" value="<?php echo e($fFrom); ?>">
         <input type="hidden" name="to" id="cmtDateTo" value="<?php echo e($fTo); ?>">
         <input type="text" class="layui-input cb-date-range" data-from="#cmtDateFrom" data-to="#cmtDateTo"
-               placeholder="发表时间范围" autocomplete="off" style="width:230px"
+               placeholder="<?php echo e(admin_t('admin.comment.filter_date_range')); ?>" autocomplete="off" style="width:230px"
                value="<?php echo e($rangeText); ?>">
-        <button class="layui-btn layui-btn-sm" type="submit"><i class="layui-icon layui-icon-search"></i> 筛选</button>
-        <a class="layui-btn layui-btn-sm layui-btn-primary" href="<?php echo e(site_base_admin('comment/list&status=' . $status)); ?>">重置</a>
+        <button class="layui-btn layui-btn-sm" type="submit"><i class="layui-icon layui-icon-search"></i> <?php echo e(admin_t('admin.comment.filter_btn')); ?></button>
+        <a class="layui-btn layui-btn-sm layui-btn-primary" href="<?php echo e(site_base_admin('comment/list&status=' . $status)); ?>"><?php echo e(admin_t('admin.common.reset')); ?></a>
     </form>
-    <p class="tip">共 <?php echo (int) $total; ?> 条评论。</p>
+    <p class="tip"><?php echo e(admin_t('admin.comment.total', array((int) $total))); ?></p>
     <div class="table-wrap">
     <table class="layui-table" lay-skin="line">
         <thead>
-            <tr><th>ID</th><th>作者</th><th>内容</th><th>所属文章</th><th>状态</th><th>时间</th><th>操作</th></tr>
+            <tr><th>ID</th><th><?php echo e(admin_t('admin.post.col_author')); ?></th><th><?php echo e(admin_t('admin.comment.col_content')); ?></th><th><?php echo e(admin_t('admin.comment.col_post')); ?></th><th><?php echo e(admin_t('admin.common.status')); ?></th><th><?php echo e(admin_t('admin.log.col_time')); ?></th><th><?php echo e(admin_t('admin.common.actions')); ?></th></tr>
         </thead>
         <tbody>
         <?php if (empty($comments)): ?>
-        <tr class="empty-row"><td colspan="7">暂无数据</td></tr>
+        <tr class="empty-row"><td colspan="7"><?php echo e(admin_t('admin.common.none')); ?></td></tr>
         <?php endif; ?>
         <?php foreach ($comments as $commentItem): ?>
         <tr>
@@ -59,9 +64,9 @@ $extraQuery = 'author=' . urlencode($fAuthor) . '&post_id=' . (int) $fPostId
             <td style="max-width:340px"><?php echo e(mb_substr($commentItem['content'], 0, 80)); ?></td>
             <td><?php echo isset($posts[(int) $commentItem['post_id']]) ? e($posts[(int) $commentItem['post_id']]) : '-'; ?></td>
             <td>
-                <?php if ($commentItem['status'] === 'published'): ?><span class="layui-badge layui-bg-green">已公开</span>
-                <?php elseif ($commentItem['status'] === 'pending'): ?><span class="layui-badge layui-bg-warn">待审核</span>
-                <?php else: ?><span class="layui-badge layui-bg-red">回收站</span><?php endif; ?>
+                <?php if ($commentItem['status'] === 'published'): ?><span class="layui-badge layui-bg-green"><?php echo e(admin_t('admin.comment.status_published')); ?></span>
+                <?php elseif ($commentItem['status'] === 'pending'): ?><span class="layui-badge layui-bg-warn"><?php echo e(admin_t('admin.comment.status_pending')); ?></span>
+                <?php else: ?><span class="layui-badge layui-bg-red"><?php echo e(admin_t('admin.comment.status_trash')); ?></span><?php endif; ?>
             </td>
             <td><?php echo e($commentItem['created_at']); ?></td>
             <td>
@@ -70,20 +75,20 @@ $extraQuery = 'author=' . urlencode($fAuthor) . '&post_id=' . (int) $fPostId
                 <form method="post" action="<?php echo e(site_base_admin('comment/audit')); ?>">
                     <?php echo Csrf::field(); ?>
                     <input type="hidden" name="id" value="<?php echo (int) $commentItem['id']; ?>">
-                    <button class="layui-btn layui-btn-xs layui-btn-normal" name="decision" value="approve">通过</button>
-                    <button class="layui-btn layui-btn-xs layui-btn-danger" name="decision" value="reject">驳回</button>
+                    <button class="layui-btn layui-btn-xs layui-btn-normal" name="decision" value="approve"><?php echo e(admin_t('admin.post.approve')); ?></button>
+                    <button class="layui-btn layui-btn-xs layui-btn-danger" name="decision" value="reject"><?php echo e(admin_t('admin.post.reject')); ?></button>
                 </form>
                 <?php elseif ($commentItem['status'] === 'published'): ?>
                 <form method="post" action="<?php echo e(site_base_admin('comment/delete')); ?>">
                     <?php echo Csrf::field(); ?>
                     <input type="hidden" name="id" value="<?php echo (int) $commentItem['id']; ?>">
-                    <button class="layui-btn layui-btn-xs layui-btn-danger">删除</button>
+                    <button class="layui-btn layui-btn-xs layui-btn-danger"><?php echo e(admin_t('admin.common.delete')); ?></button>
                 </form>
                 <?php else: ?>
                 <form method="post" action="<?php echo e(site_base_admin('comment/restore')); ?>">
                     <?php echo Csrf::field(); ?>
                     <input type="hidden" name="id" value="<?php echo (int) $commentItem['id']; ?>">
-                    <button class="layui-btn layui-btn-xs layui-btn-primary">恢复</button>
+                    <button class="layui-btn layui-btn-xs layui-btn-primary"><?php echo e(admin_t('admin.post.restore')); ?></button>
                 </form>
                 <?php endif; ?>
                 <?php do_action('comment_list_row_actions', $commentItem); /* 插件注入点：行内追加操作按钮（输出需自带 CSRF 表单并自行转义） */ ?>

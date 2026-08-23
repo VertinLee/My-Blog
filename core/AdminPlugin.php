@@ -10,7 +10,7 @@ class AdminPlugin
     public static function listAction()
     {
         Auth::require_cap('manage_plugins');
-        Admin::render('插件管理', 'plugin_list', array(
+        Admin::render(admin_t('admin.menu.plugin'), 'plugin_list', array(
             'plugins' => Plugin::discover(),
             'actives' => Plugin::activeList(),
             'orphans' => self::orphanSlugs(),
@@ -143,9 +143,9 @@ class AdminPlugin
         Auth::require_cap('manage_plugins');
         $slug = self::slugInput('post');
         if ($slug === '' || !Plugin::purgeOrphanData($slug)) {
-            flash_set('error', '该插件无需清理或目录仍存在');
+            flash_set('error', admin_t('admin.plugin.orphan_none'));
         } else {
-            flash_set('success', '残留数据已清理：' . $slug);
+            flash_set('success', admin_t('admin.plugin.orphan_cleaned', array($slug)));
         }
         redirect(site_base_admin('plugin/list'));
     }
@@ -156,9 +156,9 @@ class AdminPlugin
         Auth::require_cap('manage_plugins');
         $slug = self::slugInput('post');
         if ($slug === '' || !Plugin::activate($slug)) {
-            flash_set('error', '插件不存在或启用失败');
+            flash_set('error', admin_t('admin.plugin.activate_failed'));
         } else {
-            flash_set('success', '插件已启用');
+            flash_set('success', admin_t('admin.plugin.activated'));
         }
         redirect(site_base_admin('plugin/list'));
     }
@@ -169,9 +169,9 @@ class AdminPlugin
         Auth::require_cap('manage_plugins');
         $slug = self::slugInput('post');
         if ($slug === '' || !Plugin::deactivate($slug)) {
-            flash_set('error', '插件未启用或不存在');
+            flash_set('error', admin_t('admin.plugin.deactivate_failed'));
         } else {
-            flash_set('success', '插件已禁用');
+            flash_set('success', admin_t('admin.plugin.deactivated'));
         }
         redirect(site_base_admin('plugin/list'));
     }
@@ -182,9 +182,9 @@ class AdminPlugin
         Auth::require_cap('manage_plugins');
         $slug = self::slugInput('post');
         if ($slug === '' || !Plugin::uninstall($slug)) {
-            flash_set('error', '插件不存在或删除失败');
+            flash_set('error', admin_t('admin.plugin.uninstall_failed'));
         } else {
-            flash_set('success', '插件已删除');
+            flash_set('success', admin_t('admin.plugin.uninstalled'));
         }
         redirect(site_base_admin('plugin/list'));
     }

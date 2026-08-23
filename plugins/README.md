@@ -141,6 +141,8 @@ URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`
 
 其他可用内核 API：`add_action/add_filter`、`e()`、`Router::url()`、`Option::get()`、
 `DB::query()`（结构化查询构造器，值自动参数绑定）、`blog_log()`、`client_ip()` 等。
+插件后台设置页文案可用 `admin_t($key)` 接入后台多语言（当前语言包缺键时自动回退中文基线
+`core/langs/zh_CN.php`；插件亦可完全自管文案，不强制）。
 **禁止**在插件中直接拼接 SQL、直接读 `$_GET`/`$_POST`
 原值、输出未转义变量——请复用内核的统一输入校验器（`input_text/input_int/input_email/input_phone/input_slug/input_enum/input_password`）与 `e()`；
 在 `<script>` 内输出 JSON 一律用 `json_out_script()`。

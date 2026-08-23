@@ -460,7 +460,7 @@ function admin_pager($page, $totalPages, $urlBase)
     }
     $html = '<div class="layui-box layui-laypage">';
     if ($page > 1) {
-        $html .= '<a href="' . e(site_base_admin($urlBase . 'page=' . ($page - 1))) . '">« 上一页</a>';
+        $html .= '<a href="' . e(site_base_admin($urlBase . 'page=' . ($page - 1))) . '">« ' . e(admin_t('admin.common.page_prev')) . '</a>';
     }
     $prev = 0;
     foreach ($visible as $i) {
@@ -476,7 +476,7 @@ function admin_pager($page, $totalPages, $urlBase)
         $prev = $i;
     }
     if ($page < $totalPages) {
-        $html .= '<a href="' . e(site_base_admin($urlBase . 'page=' . ($page + 1))) . '">下一页 »</a>';
+        $html .= '<a href="' . e(site_base_admin($urlBase . 'page=' . ($page + 1))) . '">' . e(admin_t('admin.common.page_next')) . ' »</a>';
     }
     return $html . '</div>';
 }

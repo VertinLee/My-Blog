@@ -25,12 +25,12 @@ $menuIcons = array(
 $flashMsgs = flash_pull();
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="<?php echo e(Lang::locale()); ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title><?php echo e($pageTitle); ?> - 后台管理</title>
+<title><?php echo e($pageTitle); ?> - <?php echo e(admin_t('admin.common.admin_title')); ?></title>
 <link rel="stylesheet" href="<?php echo e(assets_url('vendor/layui/css/layui.css')); ?>">
 <link rel="stylesheet" href="<?php echo e(assets_url('admin/admin.css')); ?>">
 <script>
@@ -51,7 +51,7 @@ $flashMsgs = flash_pull();
 <div class="layui-layout layui-layout-admin">
     <div class="layui-header admin-header">
         <div class="top-left">
-            <button type="button" class="side-toggle" id="admin-side-toggle" aria-label="切换导航菜单" aria-expanded="false">
+            <button type="button" class="side-toggle" id="admin-side-toggle" aria-label="<?php echo e(admin_t('admin.common.toggle_nav')); ?>" aria-expanded="false">
                 <i class="layui-icon layui-icon-spread-left"></i>
             </button>
             <div class="top-title"><?php echo e($pageTitle); ?></div>
@@ -62,11 +62,11 @@ $flashMsgs = flash_pull();
                     <?php echo e($adminUser['nickname']); ?><span class="top-role">（<?php echo e($adminUser['role']); ?>）</span>
                 </a>
                 <dl class="layui-nav-child">
-                    <dd><a href="<?php echo e(Router::url('home')); ?>" target="_blank"><i class="layui-icon layui-icon-website"></i> 查看站点</a></dd>
+                    <dd><a href="<?php echo e(Router::url('home')); ?>" target="_blank"><i class="layui-icon layui-icon-website"></i> <?php echo e(admin_t('admin.common.view_site')); ?></a></dd>
                     <dd>
                         <form method="post" action="<?php echo e(site_base_admin('auth/logout')); ?>" class="logout-form">
                             <?php echo Csrf::field(); ?>
-                            <button type="submit" class="logout-btn"><i class="layui-icon layui-icon-logout"></i> 登出</button>
+                            <button type="submit" class="logout-btn"><i class="layui-icon layui-icon-logout"></i> <?php echo e(admin_t('admin.auth.logout')); ?></button>
                         </form>
                     </dd>
                 </dl>
@@ -74,7 +74,7 @@ $flashMsgs = flash_pull();
         </ul>
     </div>
     <div class="layui-side admin-side" id="admin-side">
-        <div class="side-brand"><?php echo e(site_name()); ?><span>管理后台</span></div>
+        <div class="side-brand"><?php echo e(site_name()); ?><span><?php echo e(admin_t('admin.common.admin_panel')); ?></span></div>
         <div class="side-scroll">
             <ul class="layui-nav layui-nav-tree admin-nav-tree" lay-filter="adminNav" lay-shrink="all">
                 <?php foreach ($menuItems as $item): ?>
@@ -116,8 +116,8 @@ $flashMsgs = flash_pull();
         </div>
         <div class="side-foot">
             <button type="button" class="layui-btn layui-btn-primary layui-btn-sm layui-btn-fluid darkmode-toggle"
-                    id="admin-darkmode-toggle" title="切换明暗模式" aria-label="切换明暗模式">
-                <i class="layui-icon layui-icon-moon" id="admin-darkmode-icon"></i> 明暗切换
+                    id="admin-darkmode-toggle" title="<?php echo e(admin_t('admin.common.darkmode_tip')); ?>" aria-label="<?php echo e(admin_t('admin.common.darkmode_tip')); ?>">
+                <i class="layui-icon layui-icon-moon" id="admin-darkmode-icon"></i> <?php echo e(admin_t('admin.common.darkmode')); ?>
             </button>
         </div>
     </div>
@@ -138,7 +138,7 @@ $flashMsgs = flash_pull();
             }
             include APP_ROOT . '/user/views/' . $view . '.php';
             ?>
-            <div class="admin-footnote"><?php echo e(site_name()); ?> · 管理后台</div>
+            <div class="admin-footnote"><?php echo e(site_name()); ?> · <?php echo e(admin_t('admin.common.admin_panel')); ?></div>
         </main>
     </div>
 </div>
@@ -148,6 +148,14 @@ $flashMsgs = flash_pull();
 }, $flashMsgs)); ?>;</script>
 <?php endif; ?>
 <script src="<?php echo e(assets_url('vendor/layui/layui.js')); ?>"></script>
+<script>
+// 后台语言包对 admin.js 弹层文案的覆盖注入（确认框标题/按钮）
+window.CB_ADMIN_LANG = <?php echo json_out_script(array(
+    'confirm_title'   => admin_t('admin.js.confirm_title'),
+    'confirm_ok'      => admin_t('admin.js.confirm_ok'),
+    'confirm_cancel'  => admin_t('admin.common.cancel'),
+)); ?>;
+</script>
 <script src="<?php echo e(assets_url('admin/admin.js')); ?>"></script>
 <?php if (isset($viewScripts)): ?>
 <?php foreach ($viewScripts as $scriptUrl): ?>

@@ -57,7 +57,10 @@
 │   ├── Csrf.php           ← CSRF token 生成与校验
 │   ├── Utils.php          ← e() 转义、分页、时间格式化等
 │   ├── Markdown.php       ← Markdown→HTML + 服务端 XSS 白名单过滤（DOMDocument）
-│   └── Plugin.php         ← 插件发现、加载、启用状态管理
+│   ├── Plugin.php         ← 插件发现、加载、启用状态管理
+│   ├── Lang.php           ← 后台多语言：语言包发现、按需加载、中文基线降级
+│   └── langs/
+│       └── zh_CN.php      ← 后台中文基线语言包（所有语言的最终降级方案，禁止删除）
 ├── themes/
 │   └── default/           ← 默认模板（仿 qyqiu.cn），结构见 §10
 ├── plugins/
@@ -73,7 +76,8 @@
 │   │   ├── vditor/        ← dist 裁剪版（裁剪清单见 assets/vendor/README.md）
 │   │   ├── katex/         ← css/js/fonts 全套
 │   │   └── highlight.js/  ← 按需语言包 + 主题 css
-│   └── admin/             ← 后台自有 css/js
+│   ├── admin/             ← 后台自有 css/js
+│   └── langs/             ← 后台语言包（仅手动放置，禁止 HTTP 直接访问；预装 en_US.php）
 └── uploads/               ← 上传目录（头像 uploads/avatars/，文章图片按年月分目录）
 ```
 
@@ -189,8 +193,8 @@ id / name / slug UNIQUE / description / sort。
 - `Router.php` 解析 `PATH_INFO`/重写后的 `r` 参数，正则匹配路由表。
 - URL 生成统一走 `Router::url('post', ['id'=>1])`，**禁止在模板中手写路径**，保证重写开关切换时链接一致。
 - 回退模式：未启用重写时 URL 为 `index.php?r=post/1.html`，由 install 自检或后台设置决定。
-- `.htaccess`：所有非真实文件/目录的请求重写至 `index.php`；同时屏蔽 `config.php`、`core/`，并禁止 `plugins/`、`themes/` 下 PHP 文件直接执行（与 Nginx 规则对齐）。
-- `nginx.conf.example`：等价的 `try_files` + `location` 示例，含 `core/`、`config.php` 拒绝访问规则。
+- `.htaccess`：所有非真实文件/目录的请求重写至 `index.php`；同时屏蔽 `config.php`、`core/`、`assets/langs/`（语言包目录），并禁止 `plugins/`、`themes/` 下 PHP 文件直接执行（与 Nginx 规则对齐）。
+- `nginx.conf.example`：等价的 `try_files` + `location` 示例，含 `core/`、`config.php`、`assets/langs/` 拒绝访问规则。
 
 ---
 
@@ -198,13 +202,15 @@ id / name / slug UNIQUE / description / sort。
 
 流程为向导式四步，`install/index.php` 分发；已安装（存在 `install/install.lock` 或根目录 `config.php`，双重守卫）时一律 301 跳转首页，防止锁文件被误删后经重装覆盖 `config.php` 导致站点被接管。
 
+安装向导界面中英双语：文案包为 `install/langs.php`（`install.{步骤}.{语义}` 键，随安装程序发布），经 `ins_t()` 查询（当前语言 → 中文基线 → 原样返回键，`%s` 占位）；界面语言由 `ins_lang()` 决定，优先级为 `?lang=` 显式切换（白名单二值并写 Session）→ Session 已存选择 → 浏览器 `Accept-Language` 首选检测（中文→zh_CN，否则 en_US）。该机制独立于后台 `Lang` 体系——安装期无数据库（`Option` 不可用），且 `assets/langs/` 语言包属用户可删资产，安装器文案不寄生于其中。
+
 1. **环境自检**（不通过则禁止下一步，红绿清单展示）：
    - PHP ≥ 7.4；
    - 扩展：pdo_mysql、mbstring、openssl、json、curl、fileinfo、gd；
    - 可写性：站点根目录（生成 config.php）、`uploads/`；
    - 重写能力：Apache 下探测 mod_rewrite；Nginx 下展示 `nginx.conf.example` 配置指引。
 2. **数据库配置**：连接地址、端口（默认 3306）、账户名、数据库名、密码、**表前缀**（默认 `cb_`，仅允许字母数字下划线）。提供"测试连接"按钮（PDO 实测并回报错误信息）。
-3. **管理员信息**：用户名、昵称、密码（二次确认；**服务端强制口令复杂度校验，规则同 §6.1**：≥8 位、四类字符至少三类、不得含用户名、不得命中弱口令黑名单）、邮箱、手机号。写入 users 表（role=admin，`password_changed_at` 初始化为当前时间）。
+3. **管理员信息**：用户名、昵称、密码（二次确认；**服务端强制口令复杂度校验，规则同 §6.1**：≥8 位、四类字符至少三类、不得含用户名、不得命中弱口令黑名单）、邮箱、手机号、**后台语言**（`admin_locale`，下拉可选项 = 中文基线 + `assets/langs/` 扫描结果，缺省跟随安装向导界面语言，非法值回退 `zh_CN`）。写入 users 表（role=admin，`password_changed_at` 初始化为当前时间）。
 4. **执行安装**：按 §2 建全部表（带前缀）→ 写入默认 options，其中安全策略默认项：`log_retention_days=180`、`login_max_fail=5`、`login_lock_minutes=10`、`session_timeout_minutes=30`、`pwd_expire_enabled=0`（**密码过期默认关闭**）、`pwd_expire_days=90`、`pwd_history_count=0`（密码历史默认关闭）、`ip_header_enabled=0`（**自定义 IP 标头默认关闭**）、`ip_header_name='X-Forwarded-For'`（CDN 真实 IP 标头名，见 §6.4）、`debug=0`；另有站点名、审核开关默认关、默认模板 default、启用插件空列表 → 生成 `config.php`（DB 配置 + 随机 64 位密钥，用于 CSRF/Session 加固）→ 写 `install/install.lock` → 提示安装完成。
 
 ---
@@ -236,6 +242,7 @@ id / name / slug UNIQUE / description / sort。
 仪表盘、文章管理（列表/新增/编辑/回收站/审核队列）、评论管理（列表/审核队列）、分类管理、用户管理（管理员，含手动解锁被锁账号、"下次登录强制改密"勾选）、站点设置、**安全设置（仅管理员**：口令复杂度开关细则、登录失败次数/锁定时长、会话超时、密码过期功能开关与天数、密码历史开关、**客户端 IP 来源设置（自定义标头开关与标头名，含 CDN 伪造风险提示）**、日志留存天数、登录/审计日志快捷入口**）**、模板管理、插件管理、日志中心（管理员）、个人资料（昵称/邮箱/手机号/密码/头像，所有登录角色；改密必须验证原密码）。
 - 仪表盘：所有登录角色均显示时段问候（按早上/中午/晚上显示“昵称，XX好！欢迎访问站点名”）；全站统计（文章总数/已发布/待审核/评论/注册用户等）与审计日志预览**仅管理员可见**，控制器层不向 user/editor 提供该数据。
 - 后台 UI：`assets/admin/` 自有 css/js，左侧菜单 + 顶栏布局，响应式；菜单项按能力点动态显隐；导航侧栏固定不随页面滚动（对齐前台主题）；明暗模式切换（与前台默认主题共用 `cb-darkmode` 偏好键）；窄屏下侧栏为抽屉式（☰ 按钮 + 遮罩）。
+- 后台多语言（i18n）：`core/Lang.php` 提供 `Lang::t()`/模板助手 `admin_t()`，语义键 `admin.{模块}.{语义}`；中文基线包 `core/langs/zh_CN.php` 为最终降级方案（随内核，禁止删除），其余语言包（`return array(...)` 的 `xx_XX.php`，含预装 `en_US.php`）一律放 `assets/langs/`，仅允许手动放置、无后台上传入口；站点级选项 `admin_locale`（默认 `zh_CN`）在「站点设置」切换，查询链为 当前包 → 中文基线 → 原样返回键；`assets/langs/` 目录为空时后台自动保持中文。后台共享 JS（admin.js/verify.js/password_check.js/nav_sort.js）的提示语经视图注入 `window.CB_*` 覆盖实现，缺省保持中文、前台不受影响。
 - 头像上传：限 jpg/png/webp、≤2MB，服务端校验 MIME（fileinfo），重命名为随机文件名存 `uploads/avatars/`。
 
 ---
