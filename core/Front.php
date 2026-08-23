@@ -721,8 +721,10 @@ class Front
         $data['status'] = Option::get('comment_audit', '0') === '1' ? 'pending' : 'published';
         $data['created_at'] = now();
         $commentId = DB::insert('comments', $data);
+        // detail 中 content 为落库最终内容（原文快照，Logger 对其不作手机号/邮箱打码）
         blog_log('comment', 'comment.create', 'success', array(
             'comment_id' => $commentId, 'post_id' => $postId, 'status' => $data['status'],
+            'content' => $data['content'],
         ));
         flash_set('success', $data['status'] === 'pending' ? '评论已提交，等待审核' : '评论发表成功');
         redirect($back);
@@ -794,7 +796,11 @@ class Front
             'content' => $data['content'],
             'status'  => $status,
         ), array('id' => $commentId));
-        blog_log('comment', 'comment.update', 'success', array('comment_id' => $commentId, 'status' => $status));
+        // content 记录修改后落库的最终内容（原文快照，同 comment.create）
+        blog_log('comment', 'comment.update', 'success', array(
+            'comment_id' => $commentId, 'status' => $status,
+            'content' => $data['content'],
+        ));
         flash_set('success', $status === 'pending' ? '评论已修改，待审核后显示' : '评论已修改');
         redirect($back);
     }

@@ -1,6 +1,6 @@
 <?php
 /**
- * 后台插件管理：列表/启用/禁用/删除/插件设置页分发（仅管理员，能力点 manage_plugins）
+ * 后台插件管理：列表/上传/启用/禁用/删除/插件设置页分发（仅管理员，能力点 manage_plugins）
  */
 defined('APP_BOOT') or exit;
 
@@ -14,7 +14,88 @@ class AdminPlugin
             'plugins' => Plugin::discover(),
             'actives' => Plugin::activeList(),
             'orphans' => self::orphanSlugs(),
+            'uploadLimit' => ZipSafe::uploadLimit(),
         ));
+    }
+
+    /**
+     * 上传插件 zip（需服务器启用 ZipArchive 扩展）
+     * slug 由包内主文件 {slug}.php（头部须声明 Plugin Name）推导；同名插件执行覆盖更新：
+     * 先解压到临时目录做身份校验，再备份旧目录、替换就位，失败自动回滚
+     */
+    public static function uploadAction()
+    {
+        Auth::require_cap('manage_plugins');
+        if (empty($_FILES['plugin_zip'])) {
+            flash_set('error', '请选择要上传的 zip 文件');
+            redirect(site_base_admin('plugin/list'));
+        }
+        $file = $_FILES['plugin_zip'];
+        $err = ZipSafe::uploadError($file, 10 * 1024 * 1024);
+        if ($err !== '') {
+            flash_set('error', $err);
+            redirect(site_base_admin('plugin/list'));
+        }
+
+        $zip = null;
+        // 必需条目仅粗筛"包内至少一个 slug 风格命名的 php"，主文件合法性在解压后判定
+        $err = ZipSafe::openChecked($file['tmp_name'], '#(^|/)[a-z0-9-]{1,64}\.php$#', $zip);
+        if ($err !== '') {
+            blog_log('plugin', 'plugin.upload', 'fail', array('reason' => $err));
+            flash_set('error', $err === 'zip 包缺少必需的文件' ? '插件包内未找到主文件（{slug}.php）' : $err);
+            redirect(site_base_admin('plugin/list'));
+        }
+        $tmp = '';
+        $err = ZipSafe::extractToTemp($zip, APP_ROOT . '/plugins', $tmp);
+        if ($err !== '') {
+            flash_set('error', $err);
+            redirect(site_base_admin('plugin/list'));
+        }
+        // slug 由包内主文件推导：顶层 {slug}.php 且头部含 Plugin Name（与 Plugin::discover 同一判定）
+        $slug = '';
+        $meta = null;
+        foreach (scandir($tmp) as $item) {
+            if (preg_match('/^([a-z0-9-]{1,64})\.php$/', $item, $m)) {
+                $parsed = Plugin::parseMeta($tmp . '/' . $item);
+                if ($parsed !== null) {
+                    $slug = $m[1];
+                    $meta = $parsed;
+                    break;
+                }
+            }
+        }
+        if ($slug === '') {
+            ZipSafe::removeDir($tmp);
+            blog_log('plugin', 'plugin.upload', 'fail', array('reason' => 'main_file_missing'));
+            flash_set('error', '包内未找到合法插件主文件（{slug}.php 且头部须声明 Plugin Name）');
+            redirect(site_base_admin('plugin/list'));
+        }
+
+        $dest = APP_ROOT . '/plugins/' . $slug;
+        $isUpdate = is_dir($dest);
+        // 覆盖更新需校验插件身份：Plugin Name 不一致视为不同插件，防止同名异插件被误覆盖
+        if ($isUpdate) {
+            $oldMeta = Plugin::parseMeta($dest . '/' . $slug . '.php');
+            if ($oldMeta !== null && $meta['name'] !== $oldMeta['name']) {
+                ZipSafe::removeDir($tmp);
+                blog_log('plugin', 'plugin.update', 'fail', array('plugin' => $slug, 'reason' => 'name_mismatch'));
+                flash_set('error', '包内 Plugin Name 与现有插件不一致，已拒绝覆盖');
+                redirect(site_base_admin('plugin/list'));
+            }
+        }
+        $err = ZipSafe::swapIn($tmp, $dest);
+        if ($err !== '') {
+            blog_log('plugin', $isUpdate ? 'plugin.update' : 'plugin.upload', 'fail', array(
+                'plugin' => $slug, 'reason' => $err,
+            ));
+            flash_set('error', $err);
+            redirect(site_base_admin('plugin/list'));
+        }
+        blog_log('plugin', $isUpdate ? 'plugin.update' : 'plugin.upload', 'success', array(
+            'plugin' => $slug, 'version' => $meta['version'],
+        ));
+        flash_set('success', ($isUpdate ? '插件已覆盖更新：' : '插件已上传：') . $slug);
+        redirect(site_base_admin('plugin/list'));
     }
 
     /**
