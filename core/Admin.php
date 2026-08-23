@@ -176,7 +176,8 @@ class Admin
     {
         $data['pageTitle'] = $title;
         $data['menuItems'] = self::menu();
-        $data['currentM'] = isset($_GET['m']) ? $_GET['m'] : 'dashboard';
+        // currentM 只用于菜单高亮比较；仍走统一输入校验，杜绝未来视图误输出时的反射 XSS 隐患
+        $data['currentM'] = input_text('m', 'dashboard', 32, 'get');
         extract($data, EXTR_SKIP);
         include APP_ROOT . '/user/views/layout.php';
     }

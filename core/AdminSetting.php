@@ -291,7 +291,9 @@ class AdminSetting
         }
         $isRelative = strpos($url, '/') === 0 && strpos($url, '//') !== 0;
         $isAbsolute = (bool) preg_match('#^https?://#i', $url);
-        $isPlain = strpos($url, ':') === false;
+        // 普通串：不含协议冒号，且不得以 / 或 \ 开头——//evil.com 是协议相对地址，
+        // 浏览器会按当前协议跳站外，必须走 http(s) 显式白名单而非由此放行
+        $isPlain = strpos($url, ':') === false && strpos($url, '/') !== 0 && strpos($url, '\\') !== 0;
         if (!$isRelative && !$isAbsolute && !$isPlain) {
             return null;
         }

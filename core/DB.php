@@ -196,6 +196,9 @@ class DB_Query
     /** @var string 带前缀表名 */
     private $table;
 
+    /** @var string 逻辑表名（无前缀，供 logs 守卫比对） */
+    private $logicalTable;
+
     /** @var array where 片段与绑定值 */
     private $wheres = array();
     private $params = array();
@@ -217,7 +220,20 @@ class DB_Query
      */
     public function __construct($table)
     {
-        $this->table = DB::table(self::checkIdent($table));
+        $this->logicalTable = self::checkIdent($table);
+        $this->table = DB::table($this->logicalTable);
+    }
+
+    /**
+     * 日志表保护：审计记录只增不改。静态包装 DB::update()/delete() 已有同名守卫，
+     * 此处兜底查询构造器直连路径（DB::query('logs')->delete() 等），唯一合法删除
+     * 通道是 DB::purgeLogsBefore()（裸 PDO，不经本构造器）
+     */
+    private function guardLogs($op)
+    {
+        if ($this->logicalTable === 'logs') {
+            throw new RuntimeException('audit log is append-only, ' . $op . ' forbidden');
+        }
     }
 
     /**
@@ -406,6 +422,7 @@ class DB_Query
     /** 按已设条件更新 */
     public function update(array $data)
     {
+        $this->guardLogs('UPDATE');
         $sets = array();
         $params = array();
         foreach ($data as $col => $value) {
@@ -428,6 +445,7 @@ class DB_Query
      */
     public function increment($col, $delta = 1)
     {
+        $this->guardLogs('UPDATE');
         $delta = (int) $delta;
         $colIdent = self::checkIdent($col);
         // LAST_INSERT_ID(expr) 把表达式值写入连接级 LAST_INSERT_ID，随后 lastInsertId() 取回，
@@ -445,6 +463,7 @@ class DB_Query
     /** 按已设条件删除 */
     public function delete()
     {
+        $this->guardLogs('DELETE');
         $sql = 'DELETE FROM `' . $this->table . '`' . $this->buildWhere() . $this->limit;
         $stmt = DB::pdo()->prepare($sql);
         $stmt->execute($this->params);

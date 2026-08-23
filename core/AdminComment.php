@@ -112,15 +112,16 @@ class AdminComment
         redirect(site_base_admin('comment/list'));
     }
 
-    /** 回收站评论恢复 */
+    /** 回收站评论恢复（开启评论审核时恢复进 pending 复审队列，不得直接发布） */
     public static function restoreAction()
     {
         Auth::require_cap('manage_comments');
         $id = input_int('id', 0, 'post');
         if ($id > 0) {
-            DB::update('comments', array('status' => 'published'), array('id' => $id, 'status' => 'trash'));
-            blog_log('comment', 'comment.restore', 'success', array('comment_id' => $id));
-            flash_set('success', '评论已恢复');
+            $status = Option::get('comment_audit', '0') === '1' ? 'pending' : 'published';
+            DB::update('comments', array('status' => $status), array('id' => $id, 'status' => 'trash'));
+            blog_log('comment', 'comment.restore', 'success', array('comment_id' => $id, 'status' => $status));
+            flash_set('success', $status === 'pending' ? '评论已恢复，待审核通过后发布' : '评论已恢复');
         }
         redirect(site_base_admin('comment/list&status=trash'));
     }
