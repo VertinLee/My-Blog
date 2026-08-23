@@ -129,7 +129,13 @@
             }
             if (layer) {
                 e.preventDefault();
-                layer.confirm(msg, { icon: 3, title: '操作确认', btn: ['确认', '取消'] }, function (index) {
+                // 确认弹层文案可由后台语言包覆盖（window.CB_ADMIN_LANG 由 layout 注入）
+                var lang = window.CB_ADMIN_LANG || {};
+                layer.confirm(msg, {
+                    icon: 3,
+                    title: lang.confirm_title || '操作确认',
+                    btn: [lang.confirm_ok || '确认', lang.confirm_cancel || '取消']
+                }, function (index) {
                     layer.close(index);
                     form.submit();
                 });

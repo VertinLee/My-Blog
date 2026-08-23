@@ -68,6 +68,7 @@ class AliyunRpc
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2, // 显式固定主机名校验（默认值即 2，防运行环境被全局改写）
             CURLOPT_HTTPHEADER     => array('Content-Type: application/x-www-form-urlencoded'),
         ));
         $response = curl_exec($ch);

@@ -11,7 +11,7 @@ class AdminProfile
     public static function indexAction()
     {
         Auth::require_cap('edit_profile');
-        Admin::render('个人资料', 'profile', array('user' => Auth::user()));
+        Admin::render(admin_t('admin.menu.profile'), 'profile', array('user' => Auth::user()));
     }
 
     /** 保存资料（修改邮箱/手机须验证当前密码） */
@@ -27,11 +27,12 @@ class AdminProfile
         $avatar = input_text('avatar', '', 255, 'post');
         $password = input_password('password');
 
-        // 头像仅允许站内 uploads/ 下的相对路径；拒绝 .. 防路径穿越
+        // 头像仅允许站内 uploads/ 下的相对路径且扩展名须为图片白名单；拒绝 .. 防路径穿越
         if ($avatar !== ''
-            && (strpos($avatar, '..') !== false || !preg_match('#^uploads/[A-Za-z0-9/._-]+$#', $avatar))
+            && (strpos($avatar, '..') !== false
+                || !preg_match('#^uploads/[A-Za-z0-9/._-]+\.(jpe?g|png|webp|gif)$#i', $avatar))
         ) {
-            flash_set('error', '头像路径非法');
+            flash_set('error', admin_t('admin.profile.avatar_invalid'));
             redirect(site_base_admin('profile'));
         }
 
@@ -41,13 +42,13 @@ class AdminProfile
             // 敏感操作重验当前密码
             if ($password === '' || !password_verify($password, $user['password'])) {
                 blog_log('user', 'profile.update', 'fail', array('reason' => 'password_wrong'));
-                flash_set('error', '修改邮箱/手机须填写正确的当前密码');
+                flash_set('error', admin_t('admin.profile.pwd_required'));
                 redirect(site_base_admin('profile'));
             }
             if ($email !== '' && $email !== $oldEmail) {
                 $exists = DB::query('users')->where('email', '=', $email)->where('id', '!=', (int) $user['id'])->value('id');
                 if ($exists) {
-                    flash_set('error', '邮箱已被占用');
+                    flash_set('error', admin_t('admin.user.email_taken'));
                     redirect(site_base_admin('profile'));
                 }
                 // 邮箱渠道已声明插件时，改绑邮箱必须通过新邮箱的验证码核验；未声明则免验
@@ -55,7 +56,7 @@ class AdminProfile
                     $emailCode = input_text('email_code', '', 6, 'post');
                     if (!Front::consumeVerifyCode('profile', $email, $emailCode, 'email')) {
                         blog_log('user', 'profile.update', 'fail', array('reason' => 'email_code_wrong'));
-                        flash_set('error', '邮箱验证码错误或已过期');
+                        flash_set('error', admin_t('admin.profile.email_code_wrong'));
                         redirect(site_base_admin('profile'));
                     }
                 }
@@ -64,7 +65,7 @@ class AdminProfile
                 // 手机号作为身份核验凭据必须全局唯一
                 $exists = DB::query('users')->where('phone', '=', $phone)->where('id', '!=', (int) $user['id'])->value('id');
                 if ($exists) {
-                    flash_set('error', '该手机号已被其他账号使用');
+                    flash_set('error', admin_t('admin.profile.phone_taken'));
                     redirect(site_base_admin('profile'));
                 }
                 // 短信渠道已声明插件时，改绑手机必须通过新手机的验证码核验；未声明则免验
@@ -72,7 +73,7 @@ class AdminProfile
                     $smsCode = input_text('sms_code', '', 6, 'post');
                     if (!Front::consumeVerifyCode('profile', $phone, $smsCode, 'sms')) {
                         blog_log('user', 'profile.update', 'fail', array('reason' => 'sms_code_wrong'));
-                        flash_set('error', '短信验证码错误或已过期');
+                        flash_set('error', admin_t('admin.profile.sms_code_wrong'));
                         redirect(site_base_admin('profile'));
                     }
                 }
@@ -89,7 +90,7 @@ class AdminProfile
         blog_log('user', 'profile.update', 'success', array(
             'contact_changed' => $contactChanged ? 1 : 0,
         ));
-        flash_set('success', '资料已保存');
+        flash_set('success', admin_t('admin.profile.saved'));
         redirect(site_base_admin('profile'));
     }
 
@@ -97,7 +98,7 @@ class AdminProfile
     public static function passwordAction()
     {
         Auth::require_cap('edit_profile');
-        Admin::render('修改密码', 'profile_password', array(
+        Admin::render(admin_t('admin.profile.change_pwd_card'), 'profile_password', array(
             'expired' => !empty($_SESSION['pwd_expired']),
         ));
     }
@@ -112,7 +113,7 @@ class AdminProfile
         $wasExpired = !empty($_SESSION['pwd_expired']);
 
         if ($newPassword !== $confirm) {
-            flash_set('error', '两次输入的新密码不一致');
+            flash_set('error', admin_t('admin.profile.pwd_mismatch'));
             redirect(site_base_admin('profile/password'));
         }
         $result = Auth::changePassword(Auth::id(), $oldPassword, $newPassword);
@@ -124,7 +125,7 @@ class AdminProfile
             // 强制改密场景单独留痕（changePassword 内部已清除 pwd_expired 标记）
             blog_log('auth', 'password.expired_change', 'success', array('user_id' => Auth::id()));
         }
-        flash_set('success', '密码修改成功');
+        flash_set('success', admin_t('admin.profile.pwd_changed'));
         redirect(site_base_admin('profile'));
     }
 }

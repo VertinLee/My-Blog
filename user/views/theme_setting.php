@@ -6,9 +6,9 @@
 defined('APP_BOOT') or exit;
 ?>
 <div class="card">
-    <h3>主题设置：<?php echo e($name); ?>（<?php echo e($dir); ?>）</h3>
+    <h3><?php echo e(admin_t('admin.theme.setting_title', array($name, $dir))); ?></h3>
     <?php if (empty($schema)): ?>
-    <p class="tip">该主题未提供设置清单（主题目录内无 settings.php），没有可配置项。</p>
+    <p class="tip"><?php echo e(admin_t('admin.theme.no_schema')); ?></p>
     <?php else: ?>
     <form method="post" action="<?php echo e(site_base_admin('theme/setting_save')); ?>" class="layui-form v-form">
         <?php echo Csrf::field(); ?>
@@ -18,7 +18,7 @@ defined('APP_BOOT') or exit;
         <div class="layui-form-item">
             <?php if ($field['type'] === 'checkbox'): ?>
             <label class="v-label"><?php echo e($field['label']); ?></label>
-            <input type="checkbox" name="<?php echo e($setKey); ?>" lay-skin="switch" lay-text="开|关" value="1" <?php echo $cur === '1' ? 'checked' : ''; ?>>
+            <input type="checkbox" name="<?php echo e($setKey); ?>" lay-skin="switch" lay-text="<?php echo e(admin_t('admin.common.on')); ?>|<?php echo e(admin_t('admin.common.off')); ?>" value="1" <?php echo $cur === '1' ? 'checked' : ''; ?>>
             <?php elseif ($field['type'] === 'textarea'): ?>
             <label class="v-label"><?php echo e($field['label']); ?></label>
             <textarea name="<?php echo e($setKey); ?>" class="layui-textarea" style="max-width:100%;width:100%;min-height:80px"><?php echo e($cur); ?></textarea>
@@ -38,7 +38,7 @@ defined('APP_BOOT') or exit;
             <?php endif; ?>
         </div>
         <?php endforeach; ?>
-        <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-ok"></i> 保存</button>
+        <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-ok"></i> <?php echo e(admin_t('admin.common.save')); ?></button>
     </form>
     <?php endif; ?>
 </div>

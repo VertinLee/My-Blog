@@ -12,6 +12,7 @@ require APP_ROOT . '/core/Utils.php';
 require APP_ROOT . '/core/DB.php';
 require APP_ROOT . '/core/Hook.php';
 require APP_ROOT . '/core/Option.php';
+require APP_ROOT . '/core/Lang.php';
 require APP_ROOT . '/core/Csrf.php';
 require APP_ROOT . '/core/Router.php';
 require APP_ROOT . '/core/Auth.php';

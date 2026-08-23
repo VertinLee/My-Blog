@@ -9,6 +9,12 @@
 defined('APP_BOOT') or exit;
 
 return array(
+    'first_letter' => array(
+        'label'   => '文章首字下沉（仿古籍排版，仅文章详情页生效）',
+        'type'    => 'checkbox',
+        'hint'    => '开启后正文第一段首字放大着色；首段以图片或标题开头时不生效。',
+        'default' => '1',
+    ),
     'icp_number' => array(
         'label'     => 'ICP 备案号（如：京ICP备12345678号-1，链接至工信部备案系统）',
         'type'      => 'text',

@@ -309,15 +309,22 @@ function qq_login_handle_callback()
         redirect(Router::url('home'));
     }
 
-    // IP 维度限流：同一 IP 每分钟最多 10 次回调（防刷接口）
+    // IP 维度限流：同一 IP 每分钟最多 10 次回调（防刷接口）；
+    // 读-判-写包进命名锁，避免并发回调互相覆盖计数（无锁读改写会少计）
     $rateKey = 'rl_' . md5(client_ip());
-    $count = (int) plugin_data_get('qq-login', $rateKey, 0);
-    if ($count >= 10) {
-        plugin_log('qq-login.callback', array('result' => 'fail', 'reason' => 'rate_limited'));
-        flash_set('error', '操作过于频繁，请稍后再试');
-        redirect(Router::url('login'));
+    $lockName = 'qqrl-' . substr(md5(client_ip()), 0, 24);
+    DB::lock($lockName, 3); // 未抢到锁放行处理：限流是防刷兜底，不做硬阻断
+    try {
+        $count = (int) plugin_data_get('qq-login', $rateKey, 0);
+        if ($count >= 10) {
+            plugin_log('qq-login.callback', array('result' => 'fail', 'reason' => 'rate_limited'));
+            flash_set('error', '操作过于频繁，请稍后再试');
+            redirect(Router::url('login'));
+        }
+        plugin_data_set('qq-login', $rateKey, $count + 1, 60);
+    } finally {
+        DB::unlock($lockName);
     }
-    plugin_data_set('qq-login', $rateKey, $count + 1, 60);
 
     $code = input_text('code', '', 256, 'get');
     $state = input_text('state', '', 256, 'get');
@@ -362,20 +369,27 @@ function qq_login_do_bind($openid, $nickname)
     }
     $uid = Auth::id();
 
-    // 一个 QQ 只能绑定一个账号
-    $boundUid = qq_login_user_by_openid($openid);
-    if ($boundUid > 0 && $boundUid !== $uid) {
-        plugin_log('qq-login.bind', array('result' => 'fail', 'reason' => 'openid_taken', 'user_id' => $uid));
-        flash_set('error', '该 QQ 已绑定其他账号，无法重复绑定');
-        redirect($profileUrl);
-    }
+    // 一个 QQ 只能绑定一个账号：查重与写入必须串行——uk_lookup 唯一键不含 data_value，
+    // DB 层无法兜底同一 openid 并发绑两个账号，故按 openid 维度加命名锁消除 TOCTOU
+    $lockName = 'qqbind-' . md5($openid);
+    DB::lock($lockName, 5); // 未抢到锁放行：并发绑定是极小概率，硬阻断反而影响正常用户
+    try {
+        $boundUid = qq_login_user_by_openid($openid);
+        if ($boundUid > 0 && $boundUid !== $uid) {
+            plugin_log('qq-login.bind', array('result' => 'fail', 'reason' => 'openid_taken', 'user_id' => $uid));
+            flash_set('error', '该 QQ 已绑定其他账号，无法重复绑定');
+            redirect($profileUrl);
+        }
 
-    // 换绑 = 直接覆盖当前用户的旧绑定（旧 openid 行被唯一索引覆盖）
-    plugin_user_set('qq-login', $uid, 'qq_openid', $openid);
-    if ($nickname !== '') {
-        plugin_user_set('qq-login', $uid, 'qq_nickname', $nickname);
-    } else {
-        plugin_user_delete('qq-login', $uid, 'qq_nickname');
+        // 换绑 = 直接覆盖当前用户的旧绑定（旧 openid 行被唯一索引覆盖）
+        plugin_user_set('qq-login', $uid, 'qq_openid', $openid);
+        if ($nickname !== '') {
+            plugin_user_set('qq-login', $uid, 'qq_nickname', $nickname);
+        } else {
+            plugin_user_delete('qq-login', $uid, 'qq_nickname');
+        }
+    } finally {
+        DB::unlock($lockName);
     }
     blog_log('user', 'qq.bind', 'success', array('user_id' => $uid));
     flash_set('success', 'QQ 绑定成功，此后可在登录页使用 QQ 图标直接登录');

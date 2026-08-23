@@ -11,7 +11,7 @@ class AdminSetting
     public static function siteAction()
     {
         Auth::require_cap('manage_options');
-        Admin::render('站点设置', 'setting_site', array());
+        Admin::render(admin_t('admin.menu.setting_site'), 'setting_site', array('langList' => Lang::available()));
     }
 
     /** 保存站点设置 */
@@ -49,6 +49,13 @@ class AdminSetting
             Option::set($key, $value);
         }
 
+        // 后台语言：白名单限定已发现的可用语言，非法/已删除包自动回退中文基线
+        $locale = input_enum('admin_locale', array_keys(Lang::available()), 'zh_CN', 'post');
+        if ((string) Option::get('admin_locale', 'zh_CN') !== $locale) {
+            $changed[] = 'admin_locale';
+        }
+        Option::set('admin_locale', $locale);
+
         // 时区：仅接受 PHP 合法时区标识，默认 UTC+8（Asia/Shanghai）
         $timezone = input_text('timezone', 'Asia/Shanghai', 64, 'post');
         if (!in_array($timezone, timezone_identifiers_list(), true)) {
@@ -60,7 +67,7 @@ class AdminSetting
         Option::set('timezone', $timezone);
 
         blog_log('setting', 'setting.site', 'success', array('changed' => $changed));
-        flash_set('success', '站点设置已保存');
+        flash_set('success', admin_t('admin.setting.site_saved'));
         redirect(site_base_admin('setting/site'));
     }
 
@@ -68,7 +75,7 @@ class AdminSetting
     public static function securityAction()
     {
         Auth::require_cap('manage_security');
-        Admin::render('安全设置', 'setting_security', array());
+        Admin::render(admin_t('admin.menu.setting_security'), 'setting_security', array());
     }
 
     /** 保存安全设置 */
@@ -127,7 +134,7 @@ class AdminSetting
         }
 
         blog_log('security', 'setting.security', 'success', array('changed' => $changed));
-        flash_set('success', '安全设置已保存');
+        flash_set('success', admin_t('admin.setting.security_saved'));
         redirect(site_base_admin('setting/security'));
     }
 
@@ -135,7 +142,7 @@ class AdminSetting
     public static function navAction()
     {
         Auth::require_cap('manage_options');
-        Admin::render('导航管理', 'setting_nav', array('items' => nav_items()));
+        Admin::render(admin_t('admin.menu.setting_nav'), 'setting_nav', array('items' => nav_items()));
     }
 
     /**
@@ -171,7 +178,7 @@ class AdminSetting
             // 静默丢失会误导用户，故直接拒绝保存（前端 required 已拦一道，此处兜底）
             if (input_int('fresh_' . $i, 0, 'post') === 1 && $item['url'] === '') {
                 blog_log('setting', 'setting.nav', 'fail', array('reason' => 'fresh_empty_url'));
-                flash_set('error', '新添加的导航项必须填写链接');
+                flash_set('error', admin_t('admin.setting.nav_fresh_empty_url'));
                 redirect(site_base_admin('setting/nav'));
             }
             $rows[$i] = array(
@@ -196,7 +203,7 @@ class AdminSetting
         $items = self::rebuildNav($rows);
         Option::set('nav_items', json_encode($items, JSON_UNESCAPED_UNICODE));
         blog_log('setting', 'setting.nav', 'success', array('count' => count($items)));
-        flash_set('success', '导航项已保存');
+        flash_set('success', admin_t('admin.setting.nav_saved'));
         redirect(site_base_admin('setting/nav'));
     }
 
@@ -291,7 +298,9 @@ class AdminSetting
         }
         $isRelative = strpos($url, '/') === 0 && strpos($url, '//') !== 0;
         $isAbsolute = (bool) preg_match('#^https?://#i', $url);
-        $isPlain = strpos($url, ':') === false;
+        // 普通串：不含协议冒号，且不得以 / 或 \ 开头——//evil.com 是协议相对地址，
+        // 浏览器会按当前协议跳站外，必须走 http(s) 显式白名单而非由此放行
+        $isPlain = strpos($url, ':') === false && strpos($url, '/') !== 0 && strpos($url, '\\') !== 0;
         if (!$isRelative && !$isAbsolute && !$isPlain) {
             return null;
         }

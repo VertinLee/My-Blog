@@ -21,6 +21,9 @@ server {
     # 插件/主题/内核中的 PHP 文件一律不允许直接执行（均有 APP_BOOT 守卫，双保险）
     location ~ ^/(plugins|themes|core)/.*\.php$ { deny all; }
 
+    # 语言包目录禁止直接访问（内核经 include 加载，另有 APP_BOOT 守卫）
+    location ^~ /assets/langs/ { deny all; }
+
     # /install/ 与 /user/ 无需单列：未命中以上规则时自然走下方 PHP 解析
 
     # 伪静态：非真实文件/目录全部转前台入口

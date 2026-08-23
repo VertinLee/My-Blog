@@ -14,6 +14,9 @@ Options -Indexes
     # 静态资源不受影响，另有文件头部 APP_BOOT 守卫双重防护）
     RewriteRule ^(plugins|themes)/.+\.php$ - [F,L]
 
+    # 语言包目录：一律禁止直接访问（内核经 include 加载，另有 APP_BOOT 守卫）
+    RewriteRule ^assets/langs/ - [F,L]
+
     # 真实存在的文件/目录与独立入口直接放行
     RewriteRule ^(install|user|assets|uploads|plugins|themes)(/|$) - [L]
     RewriteCond %{REQUEST_FILENAME} -f [OR]

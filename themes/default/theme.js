@@ -1,9 +1,13 @@
 /**
  * 默认主题交互：☾ 明暗切换（localStorage 记忆，默认跟随系统）+ ☰ 移动端侧栏
- * + 正文工具栏（返回 / 字号增减 / 打印）
+ * + 正文工具栏（返回 / 目录 / 字号增减 / 打印）+ 回到顶部 + 阅读进度条
  */
 (function () {
     'use strict';
+
+    function prefersReducedMotion() {
+        return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
 
     var STORAGE_KEY = 'cb-darkmode';
 
@@ -196,11 +200,180 @@
         }
     }
 
+    /**
+     * 回到顶部：滚动超 400px 淡入，点击平滑回顶（减少动态偏好下瞬移）
+     */
+    function initBackToTop() {
+        var btn = document.getElementById('back-to-top');
+        if (!btn) {
+            return;
+        }
+        var ticking = false;
+        function onScroll() {
+            if (ticking) {
+                return;
+            }
+            ticking = true;
+            window.requestAnimationFrame(function () {
+                btn.classList.toggle('show', window.pageYOffset > 400);
+                ticking = false;
+            });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+        btn.addEventListener('click', function () {
+            window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+        });
+    }
+
+    /**
+     * 阅读进度条：文章页顶部 2px 填充，按滚动比例推进
+     */
+    function initReadingProgress() {
+        var bar = document.getElementById('reading-progress-bar');
+        if (!bar) {
+            return;
+        }
+        var ticking = false;
+        function onScroll() {
+            if (ticking) {
+                return;
+            }
+            ticking = true;
+            window.requestAnimationFrame(function () {
+                var doc = document.documentElement;
+                var max = doc.scrollHeight - doc.clientHeight;
+                bar.style.width = (max > 0 ? Math.min(100, window.pageYOffset / max * 100) : 0) + '%';
+                ticking = false;
+            });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        onScroll();
+    }
+
+    /**
+     * 文章目录：从正文 h2/h3 构建。宽屏（CSS ≥1500px）右侧常驻；
+     * 窄屏经工具栏按钮以右侧抽屉展开（遮罩/Esc/点链接后关闭），当前章节随滚动高亮。
+     * 正文无目标标题时隐藏按钮并放弃初始化。
+     */
+    function initToc() {
+        var content = document.getElementById('article-content');
+        var btn = document.getElementById('btn-toc');
+        if (!content || !btn) {
+            return;
+        }
+        var headings = content.querySelectorAll('h2, h3');
+        if (headings.length === 0) {
+            btn.style.display = 'none';
+            return;
+        }
+
+        // 构建目录树：h3 归入上一个 h2 的子表，孤立的 h3 自成顶层
+        var panel = document.createElement('nav');
+        panel.className = 'toc-panel';
+        panel.id = 'toc-panel';
+        panel.setAttribute('aria-label', '文章目录');
+        var title = document.createElement('div');
+        title.className = 'toc-title';
+        title.textContent = '目录';
+        panel.appendChild(title);
+        var rootList = document.createElement('ul');
+        rootList.className = 'toc-list';
+        panel.appendChild(rootList);
+
+        var links = [];
+        var lastTopItem = null;
+        for (var i = 0; i < headings.length; i++) {
+            var heading = headings[i];
+            if (!heading.id) {
+                heading.id = 'toc-' + i;
+            }
+            var item = document.createElement('li');
+            var link = document.createElement('a');
+            link.href = '#' + heading.id;
+            link.textContent = heading.textContent;
+            link.setAttribute('data-target', heading.id);
+            item.appendChild(link);
+            links.push(link);
+            if (heading.tagName === 'H3' && lastTopItem) {
+                var sub = lastTopItem.querySelector('ul');
+                if (!sub) {
+                    sub = document.createElement('ul');
+                    lastTopItem.appendChild(sub);
+                }
+                sub.appendChild(item);
+            } else {
+                rootList.appendChild(item);
+                lastTopItem = item;
+            }
+        }
+        document.body.appendChild(panel);
+
+        // 抽屉开合（窄屏；宽屏按钮本就不显示）
+        var overlay = document.getElementById('toc-overlay');
+        function closeToc() {
+            panel.classList.remove('open');
+            if (overlay) {
+                overlay.classList.remove('open');
+            }
+            btn.setAttribute('aria-expanded', 'false');
+        }
+        btn.addEventListener('click', function () {
+            var open = panel.classList.toggle('open');
+            if (overlay) {
+                overlay.classList.toggle('open', open);
+            }
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        if (overlay) {
+            overlay.addEventListener('click', closeToc);
+        }
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape') {
+                closeToc();
+            }
+        });
+        panel.addEventListener('click', function (ev) {
+            if (ev.target.tagName === 'A') {
+                closeToc();
+            }
+        });
+
+        // 当前章节高亮：取滚动位置之上最后一个标题
+        var ticking = false;
+        function onScroll() {
+            if (ticking) {
+                return;
+            }
+            ticking = true;
+            window.requestAnimationFrame(function () {
+                var current = null;
+                for (var i = 0; i < headings.length; i++) {
+                    if (headings[i].getBoundingClientRect().top <= 80) {
+                        current = headings[i].id;
+                    } else {
+                        break;
+                    }
+                }
+                for (var j = 0; j < links.length; j++) {
+                    links[j].classList.toggle('active', links[j].getAttribute('data-target') === current);
+                }
+                ticking = false;
+            });
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+    }
+
     function init() {
         initDarkMode();
         initSidebar();
         initConfirmForms();
         initArticleToolbar();
+        initBackToTop();
+        initReadingProgress();
+        initToc();
     }
 
     if (document.readyState === 'loading') {

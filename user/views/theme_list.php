@@ -5,23 +5,24 @@
 defined('APP_BOOT') or exit;
 ?>
 <div class="card">
-    <h3>上传主题（zip，须含 style.css）</h3>
+    <h3><?php echo e(admin_t('admin.theme.upload_title')); ?></h3>
     <form method="post" action="<?php echo e(site_base_admin('theme/upload')); ?>" enctype="multipart/form-data" class="filter-bar">
         <?php echo Csrf::field(); ?>
         <input type="file" name="theme_zip" accept=".zip" required>
-        <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-upload"></i> 上传</button>
+        <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-upload"></i> <?php echo e(admin_t('admin.common.upload')); ?></button>
     </form>
+    <p class="tip">同名主题将执行覆盖更新（旧目录自动备份、失败回滚）；启用中的主题与 default 不可覆盖。服务器上传上限约 <?php echo (int) floor($uploadLimit / 1048576); ?>MB，程序限制 10MB。</p>
 </div>
 
 <div class="card">
     <div class="table-wrap">
     <table class="layui-table" lay-skin="line">
         <thead>
-            <tr><th>主题</th><th>名称</th><th>作者</th><th>版本</th><th>描述</th><th>状态</th><th>操作</th></tr>
+            <tr><th><?php echo e(admin_t('admin.theme.col_dir')); ?></th><th><?php echo e(admin_t('admin.category.name')); ?></th><th><?php echo e(admin_t('admin.post.col_author')); ?></th><th><?php echo e(admin_t('admin.theme.col_version')); ?></th><th><?php echo e(admin_t('admin.category.description')); ?></th><th><?php echo e(admin_t('admin.common.status')); ?></th><th><?php echo e(admin_t('admin.common.actions')); ?></th></tr>
         </thead>
         <tbody>
         <?php if (empty($themes)): ?>
-        <tr class="empty-row"><td colspan="7">未发现任何主题</td></tr>
+        <tr class="empty-row"><td colspan="7"><?php echo e(admin_t('admin.theme.empty')); ?></td></tr>
         <?php endif; ?>
         <?php foreach ($themes as $themeDir => $meta): ?>
         <tr>
@@ -31,28 +32,28 @@ defined('APP_BOOT') or exit;
             <td><?php echo e($meta['version']); ?></td>
             <td><?php echo e(mb_substr($meta['description'], 0, 40)); ?></td>
             <td>
-                <?php if ($themeDir === $active): ?><span class="layui-badge layui-bg-green">启用中</span>
-                <?php else: ?><span class="layui-badge layui-bg-gray">未启用</span><?php endif; ?>
+                <?php if ($themeDir === $active): ?><span class="layui-badge layui-bg-green"><?php echo e(admin_t('admin.theme.active')); ?></span>
+                <?php else: ?><span class="layui-badge layui-bg-gray"><?php echo e(admin_t('admin.theme.inactive')); ?></span><?php endif; ?>
             </td>
             <td>
                 <div class="row-actions">
                 <?php // 设置按钮仅对提供 settings.php 清单的主题展示 ?>
                 <?php if (!empty(Theme::settingsSchema($themeDir))): ?>
-                <a class="layui-btn layui-btn-xs layui-btn-primary" href="<?php echo e(site_base_admin('theme/setting&dir=' . rawurlencode($themeDir))); ?>">设置</a>
+                <a class="layui-btn layui-btn-xs layui-btn-primary" href="<?php echo e(site_base_admin('theme/setting&dir=' . rawurlencode($themeDir))); ?>"><?php echo e(admin_t('admin.theme.configure')); ?></a>
                 <?php endif; ?>
                 <?php if ($themeDir !== $active): ?>
                 <form method="post" action="<?php echo e(site_base_admin('theme/activate')); ?>">
                     <?php echo Csrf::field(); ?>
                     <input type="hidden" name="dir" value="<?php echo e($themeDir); ?>">
-                    <button class="layui-btn layui-btn-xs layui-btn-normal">启用</button>
+                    <button class="layui-btn layui-btn-xs layui-btn-normal"><?php echo e(admin_t('admin.common.enabled')); ?></button>
                 </form>
                 <?php endif; ?>
                 <?php if ($themeDir !== 'default' && $themeDir !== $active): ?>
                 <form method="post" action="<?php echo e(site_base_admin('theme/delete')); ?>"
-                      data-confirm="确认删除该主题？此操作不可恢复">
+                      data-confirm="<?php echo e(admin_t('admin.theme.delete_confirm')); ?>">
                     <?php echo Csrf::field(); ?>
                     <input type="hidden" name="dir" value="<?php echo e($themeDir); ?>">
-                    <button class="layui-btn layui-btn-xs layui-btn-danger">删除</button>
+                    <button class="layui-btn layui-btn-xs layui-btn-danger"><?php echo e(admin_t('admin.common.delete')); ?></button>
                 </form>
                 <?php endif; ?>
                 </div>

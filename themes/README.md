@@ -229,8 +229,12 @@ add_filter('post_content', 'my_theme_content');
   `beian.mps.gov.cn` 查询页，ICP 链接 `beian.miit.gov.cn`）。主题若需自带备案图标，
   应将 `gongan-icon.png` 随主题包分发。
 - **上传**：zip 包（≤10MB）内必须包含 `style.css`；条目白名单：禁止路径穿越与反斜杠条目、
-  隐藏文件（`.htaccess`/`.user.ini` 等）及 `phar`/`phtml`/`php3+` 可执行伪装，解压失败整体清理；
-  解压后目录名取 zip 文件名（清洗为 `[a-z0-9_-]`），不得覆盖已有主题与 `default`。
+  隐藏文件（`.htaccess`/`.user.ini` 等）及 `phar`/`phtml`/`php3+` 可执行伪装，并拒绝符号链接等
+  Unix 特殊类型条目（`getExternalAttributesIndex` 判定，防 Zip Slip 越目录写入），解压失败整体清理；
+  解压后目录名取 zip 文件名（清洗为 `[a-z0-9_-]`）。目录已存在时执行**覆盖更新**：
+  先解压到临时目录，新旧包均显式声明 `Theme Name` 时必须一致才放行（防止同名异主题误覆盖），
+  然后旧目录 rename 备份、新目录就位，失败自动回滚；`default` 与**当前启用中的主题**不可覆盖，
+  需先切换到其他主题。覆盖更新记 `theme.update` 审计（新装记 `theme.upload`）。
 
 > **信任警示：主题是服务端 PHP 代码。** 启用主题即在前台渲染时执行其 `functions.php`
 > 与全部模板文件，等同于把站点代码执行权交给主题作者。只安装/启用来源可信的主题包；

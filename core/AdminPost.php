@@ -52,7 +52,7 @@ class AdminPost
             $cats[(int) $r['id']] = $r['name'];
         }
 
-        Admin::render('文章管理', 'post_list', array(
+        Admin::render(admin_t('admin.menu.post'), 'post_list', array(
             'posts' => $posts, 'status' => $status, 'type' => $type, 'page' => $page,
             'totalPages' => $totalPages, 'users' => $users, 'cats' => $cats,
         ));
@@ -72,13 +72,13 @@ class AdminPost
 
         $post = DB::query('posts')->where('id', '=', $id)->where('is_page', '=', 0)->first();
         if (!$post || $post['status'] !== 'published') {
-            flash_set('error', '仅已发布文章可置顶');
+            flash_set('error', admin_t('admin.post.top_only_published'));
             redirect($back);
         }
         $new = empty($post['is_top']) ? 1 : 0;
         DB::update('posts', array('is_top' => $new), array('id' => (int) $id));
         blog_log('content', 'post.top', 'success', array('post_id' => (int) $id, 'is_top' => $new));
-        flash_set('success', $new === 1 ? '已置顶，前台列表将优先展示' : '已取消置顶');
+        flash_set('success', $new === 1 ? admin_t('admin.post.top_done') : admin_t('admin.post.top_canceled'));
         redirect($back);
     }
 
@@ -91,7 +91,7 @@ class AdminPost
         if ($id > 0) {
             $post = DB::query('posts')->where('id', '=', $id)->first();
             if (!$post) {
-                flash_set('error', '文章不存在');
+                flash_set('error', admin_t('admin.post.not_found'));
                 redirect(site_base_admin('post/list'));
             }
             // 编辑他人文章需要 edit_others_posts 能力
@@ -102,7 +102,7 @@ class AdminPost
         $categories = DB::query('categories')->orderBy('sort', 'ASC')->select();
         // 当前页面是否已勾选“显示在侧边栏导航”（存 options 的 nav_page_ids）
         $navIds = array_map('intval', Option::getJson('nav_page_ids', array()));
-        Admin::render($id > 0 ? '编辑文章' : '新增文章', 'post_edit', array(
+        Admin::render($id > 0 ? admin_t('admin.post.edit_title') : admin_t('admin.post.add'), 'post_edit', array(
             'post' => $post, 'categories' => $categories,
             'postAudit' => Option::get('post_audit', '0') === '1',
             'inNav' => $post && in_array((int) $post['id'], $navIds, true),
@@ -124,22 +124,24 @@ class AdminPost
         $isPage = input_int('is_page', 0, 'post') === 1 ? 1 : 0;
 
         if ($title === '') {
-            flash_set('error', '标题不能为空');
+            flash_set('error', admin_t('admin.post.title_required'));
             redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
         }
 
-        // 封面与头像同一口径：仅允许站内 uploads/ 下相对路径，拒绝 .. 防路径穿越与站外引用
+        // 封面与头像同一口径：仅允许站内 uploads/ 下相对路径且扩展名须为图片白名单
+        // （与上传口径一致），拒绝 .. 防路径穿越与站外引用
         if ($cover !== ''
-            && (strpos($cover, '..') !== false || !preg_match('#^uploads/[A-Za-z0-9/._-]+$#', $cover))
+            && (strpos($cover, '..') !== false
+                || !preg_match('#^uploads/[A-Za-z0-9/._-]+\.(jpe?g|png|webp|gif)$#i', $cover))
         ) {
-            flash_set('error', '封面路径非法（仅允许 uploads/ 目录下的图片）');
+            flash_set('error', admin_t('admin.post.cover_invalid'));
             redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
         }
 
         // slug 不得为纯数字：文章路由 /post/{key}.html 对纯数字 key 按 id 解析，
         // 纯数字 slug 会永远被 id 查找拦截而无法访问；页面路由同库同规则，一并限制
         if ($slug !== '' && ctype_digit($slug)) {
-            flash_set('error', '别名（slug）不能为纯数字，避免与文章 ID 访问冲突');
+            flash_set('error', admin_t('admin.post.slug_numeric'));
             redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
         }
 
@@ -150,19 +152,22 @@ class AdminPost
                 $q->where('id', '!=', $id);
             }
             if ($q->value('id')) {
-                flash_set('error', '别名（slug）已被占用');
+                flash_set('error', admin_t('admin.post.slug_taken'));
                 redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
             }
         }
 
-        // 文章审核开关：开启时非管理员提交发布一律转 pending
+        // 文章审核开关：开启时无审核权者提交"发布"一律转 pending（moderate_posts 仅管理员持有，
+        // 等价于原 isAdmin 判断，合并两处冗余分支）；但编辑存量已发布文章（如改错别字）保留
+        // published 不下架——下架应走删除/回收站通道，而非编辑保存的副作用
         $postAudit = Option::get('post_audit', '0') === '1';
-        if ($status === 'published' && $postAudit && !Auth::isAdmin()) {
-            $status = 'pending';
-        }
-        // 非管理员不允许直接发布（审核开启时）
-        if ($status === 'published' && $postAudit && !Auth::check_cap('moderate_posts')) {
-            $status = 'pending';
+        if ($postAudit && !Auth::check_cap('moderate_posts')) {
+            $oldStatus = $id > 0 ? DB::query('posts')->where('id', '=', $id)->value('status') : null;
+            if ($oldStatus === 'published') {
+                $status = 'published';
+            } elseif ($status === 'published') {
+                $status = 'pending';
+            }
         }
 
         $data = array(
@@ -181,7 +186,7 @@ class AdminPost
         if ($id > 0) {
             $post = DB::query('posts')->where('id', '=', $id)->first();
             if (!$post) {
-                flash_set('error', '文章不存在');
+                flash_set('error', admin_t('admin.post.not_found'));
                 redirect(site_base_admin('post/list'));
             }
             if ((int) $post['author_id'] !== Auth::id() && !Auth::check_cap('edit_others_posts')) {
@@ -214,7 +219,7 @@ class AdminPost
         }
         Option::set('nav_page_ids', array_values(array_unique($navIds)));
 
-        flash_set('success', '保存成功');
+        flash_set('success', admin_t('admin.post.saved'));
         redirect(site_base_admin('post/list'));
     }
 
@@ -226,7 +231,7 @@ class AdminPost
         if ($id > 0) {
             DB::update('posts', array('status' => 'trash'), array('id' => $id));
             blog_log('post', 'post.delete', 'success', array('post_id' => $id));
-            flash_set('success', '已移入回收站');
+            flash_set('success', admin_t('admin.post.trashed'));
         }
         redirect(site_base_admin('post/list&status=trash'));
     }
@@ -239,7 +244,7 @@ class AdminPost
         if ($id > 0) {
             DB::update('posts', array('status' => 'draft'), array('id' => $id, 'status' => 'trash'));
             blog_log('post', 'post.restore', 'success', array('post_id' => $id));
-            flash_set('success', '已恢复为草稿');
+            flash_set('success', admin_t('admin.post.restored'));
         }
         redirect(site_base_admin('post/list&status=trash'));
     }
@@ -257,7 +262,7 @@ class AdminPost
                 // 文章已不存在，插件可清理随文章的扩展数据
                 do_action('post_deleted', $id);
                 blog_log('post', 'post.destroy', 'success', array('post_id' => $id));
-                flash_set('success', '已彻底删除');
+                flash_set('success', admin_t('admin.post.destroyed'));
             }
         }
         redirect(site_base_admin('post/list&status=trash'));
@@ -274,7 +279,7 @@ class AdminPost
             $newStatus = $decision === 'approve' ? 'published' : 'draft';
             DB::update('posts', array('status' => $newStatus, 'updated_at' => now()), array('id' => $id));
             blog_log('post', 'post.audit', 'success', array('post_id' => $id, 'decision' => $decision));
-            flash_set('success', $decision === 'approve' ? '已通过并发布' : '已驳回为草稿');
+            flash_set('success', $decision === 'approve' ? admin_t('admin.post.approved') : admin_t('admin.post.rejected'));
         }
         redirect(site_base_admin('post/list&status=pending'));
     }

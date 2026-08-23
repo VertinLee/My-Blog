@@ -11,7 +11,7 @@ class AdminCategory
     {
         Auth::require_cap('manage_categories');
         $categories = DB::query('categories')->orderBy('sort', 'ASC')->orderBy('id', 'ASC')->select();
-        Admin::render('分类管理', 'category_list', array('categories' => $categories));
+        Admin::render(admin_t('admin.menu.category'), 'category_list', array('categories' => $categories));
     }
 
     /** 新增/编辑分类 */
@@ -25,11 +25,11 @@ class AdminCategory
         $sort = input_int('sort', 0, 'post');
 
         if ($name === '') {
-            flash_set('error', '分类名称不能为空');
+            flash_set('error', admin_t('admin.category.name_required'));
             redirect(site_base_admin('category/list'));
         }
         if ($slug === '') {
-            flash_set('error', 'slug 不能为空（仅限小写字母、数字、连字符）');
+            flash_set('error', admin_t('admin.category.slug_required'));
             redirect(site_base_admin('category/list'));
         }
         // slug 唯一性
@@ -38,7 +38,7 @@ class AdminCategory
             $q->where('id', '!=', $id);
         }
         if ($q->value('id')) {
-            flash_set('error', 'slug 已被占用');
+            flash_set('error', admin_t('admin.category.slug_taken'));
             redirect(site_base_admin('category/list'));
         }
 
@@ -50,7 +50,7 @@ class AdminCategory
             $id = DB::insert('categories', $data);
             blog_log('setting', 'category.create', 'success', array('category_id' => $id, 'name' => $name));
         }
-        flash_set('success', '保存成功');
+        flash_set('success', admin_t('admin.post.saved'));
         redirect(site_base_admin('category/list'));
     }
 
@@ -62,11 +62,11 @@ class AdminCategory
         if ($id > 0) {
             $used = DB::query('posts')->where('category_id', '=', $id)->count();
             if ($used > 0) {
-                flash_set('error', '该分类下仍有 ' . $used . ' 篇文章，请先移动文章后再删除');
+                flash_set('error', admin_t('admin.category.in_use', array($used)));
             } else {
                 DB::delete('categories', array('id' => $id));
                 blog_log('setting', 'category.delete', 'success', array('category_id' => $id));
-                flash_set('success', '分类已删除');
+                flash_set('success', admin_t('admin.category.deleted'));
             }
         }
         redirect(site_base_admin('category/list'));

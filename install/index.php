@@ -1,6 +1,6 @@
 <?php
 /**
- * 安装程序：向导式四步（环境自检→数据库→管理员→执行安装）
+ * 安装程序：向导式四步（环境自检→数据库→管理员→执行安装），中英双语界面
  * 安装完成生成 install.lock 后拒绝再次访问
  */
 
@@ -58,7 +58,7 @@ function ins_csrf_check()
 {
     $token = input_text('_csrf', '', 128, 'post');
     if ($token === '' || !hash_equals(ins_csrf(), $token)) {
-        exit('CSRF 校验失败，请返回重试');
+        exit(ins_t('install.common.csrf_fail'));
     }
 }
 
@@ -82,28 +82,121 @@ function ins_site_base()
     return ($dir === '/' || $dir === '.') ? '' : rtrim($dir, '/');
 }
 
+/**
+ * 安装向导界面语言：?lang= 显式切换（白名单二值，写 Session）
+ * > Session 已存选择 > 浏览器 Accept-Language 首选检测（中文→zh_CN，否则 en_US）
+ *
+ * @return string zh_CN / en_US
+ */
+function ins_lang()
+{
+    static $lang = null;
+    if ($lang !== null) {
+        return $lang;
+    }
+    $allowed = array('zh_CN', 'en_US');
+    $req = input_enum('lang', $allowed, '', 'get');
+    if ($req !== '') {
+        $_SESSION['ins_lang'] = $req;
+    }
+    if (!empty($_SESSION['ins_lang']) && in_array($_SESSION['ins_lang'], $allowed, true)) {
+        $lang = $_SESSION['ins_lang'];
+        return $lang;
+    }
+    $accept = isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? trim((string) $_SERVER['HTTP_ACCEPT_LANGUAGE']) : '';
+    $first = strtolower(trim(explode(',', $accept)[0]));
+    $lang = strpos($first, 'zh') === 0 ? 'zh_CN' : 'en_US';
+    return $lang;
+}
+
+/**
+ * 安装向导文案翻译：当前语言 → 中文基线 → 原样返回 key；支持 %s 顺序占位（%% 转义 %）
+ * 安装期无数据库，不经 Lang 类；文案包见 install/langs.php
+ *
+ * @param string $key  语义键（install.{步骤}.{语义}）
+ * @param array  $args 占位参数
+ * @return string
+ */
+function ins_t($key, array $args = array())
+{
+    static $packs = null;
+    if ($packs === null) {
+        $data = include __DIR__ . '/langs.php';
+        $packs = is_array($data) ? $data : array();
+    }
+    $lang = ins_lang();
+    $text = null;
+    if (isset($packs[$lang][$key]) && is_string($packs[$lang][$key])) {
+        $text = $packs[$lang][$key];
+    } elseif (isset($packs['zh_CN'][$key]) && is_string($packs['zh_CN'][$key])) {
+        // 中文基线兜底：与后台语言包同一降级策略
+        $text = $packs['zh_CN'][$key];
+    }
+    if ($text === null) {
+        $text = $key;
+    }
+    if (!empty($args)) {
+        $i = 0;
+        $text = preg_replace_callback('/%%|%s/', function ($m) use ($args, &$i) {
+            if ($m[0] === '%%') {
+                return '%';
+            }
+            return isset($args[$i]) ? (string) $args[$i++] : $m[0];
+        }, $text);
+    }
+    return $text;
+}
+
+/**
+ * 后台语言可选项：中文基线恒在，其余来自 assets/langs 扫描（xx_XX.php）
+ * 安装期无 DB，直接读包文件取 _name 显示名（与 Lang::readPack 同一包含语义）
+ *
+ * @return array 语言码 => 显示名
+ */
+function ins_admin_locales()
+{
+    $list = array('zh_CN' => '中文（简体）');
+    $base = include APP_ROOT . '/core/langs/zh_CN.php';
+    if (is_array($base) && isset($base['_name']) && is_string($base['_name']) && $base['_name'] !== '') {
+        $list['zh_CN'] = $base['_name'];
+    }
+    $files = glob(APP_ROOT . '/assets/langs/*.php');
+    if (is_array($files)) {
+        foreach ($files as $file) {
+            $code = basename($file, '.php');
+            if (!preg_match('/^[a-z]{2}_[A-Z]{2}$/', $code) || isset($list[$code])) {
+                continue;
+            }
+            $data = include $file;
+            $list[$code] = is_array($data) && isset($data['_name']) && is_string($data['_name']) && $data['_name'] !== ''
+                ? $data['_name'] : $code;
+        }
+    }
+    return $list;
+}
+
 /* ---------- 步骤一：环境自检 ---------- */
 
 function ins_env_check()
 {
     $items = array();
     $items[] = array(
-        'name' => 'PHP 版本 ≥ 7.4',
+        'name' => ins_t('install.env.php_version'),
         'ok'   => version_compare(PHP_VERSION, '7.4.0', '>='),
-        'info' => '当前 ' . PHP_VERSION,
+        'info' => ins_t('install.env.php_version_info', array(PHP_VERSION)),
     );
     foreach (array('pdo_mysql', 'mbstring', 'openssl', 'json', 'curl', 'fileinfo', 'gd') as $ext) {
         $items[] = array(
-            'name' => '扩展 ' . $ext,
+            'name' => ins_t('install.env.ext', array($ext)),
             'ok'   => extension_loaded($ext),
-            'info' => extension_loaded($ext) ? '已加载' : '未加载',
+            'info' => extension_loaded($ext) ? ins_t('install.env.ext_ok') : ins_t('install.env.ext_missing'),
         );
     }
     $rootWritable = is_writable(APP_ROOT);
     $items[] = array(
-        'name' => '站点根目录可写（生成 config.php）',
+        'name' => ins_t('install.env.root_writable'),
         'ok'   => $rootWritable,
-        'info' => $rootWritable ? '可写' : '不可写',
+        'info' => $rootWritable ? ins_t('install.env.writable') : ins_t('install.env.not_writable'),
     );
     // is_dir 前置判断已避开"已存在"警告；真失败（权限等）由下方 is_writable 检查项呈现
     if (!is_dir(APP_ROOT . '/uploads')) {
@@ -114,9 +207,9 @@ function ins_env_check()
     }
     $uploadsWritable = is_writable(APP_ROOT . '/uploads');
     $items[] = array(
-        'name' => 'uploads/ 目录可写',
+        'name' => ins_t('install.env.uploads_writable'),
         'ok'   => $uploadsWritable,
-        'info' => $uploadsWritable ? '可写' : '不可写',
+        'info' => $uploadsWritable ? ins_t('install.env.writable') : ins_t('install.env.not_writable'),
     );
     // 重写能力探测（非阻断项）
     $sapi = PHP_SAPI;
@@ -124,11 +217,11 @@ function ins_env_check()
     $rewriteOk = true;
     if (stripos($sapi, 'apache') !== false && function_exists('apache_get_modules')) {
         $rewriteOk = in_array('mod_rewrite', apache_get_modules(), true);
-        $rewriteInfo = $rewriteOk ? 'mod_rewrite 已加载' : 'mod_rewrite 未加载（可回退 index.php?r= 模式）';
+        $rewriteInfo = $rewriteOk ? ins_t('install.env.rewrite_ok') : ins_t('install.env.rewrite_no');
     } else {
-        $rewriteInfo = '非 Apache 环境（Nginx 请按 nginx.conf.example 配置；未配置时可回退 index.php?r= 模式）';
+        $rewriteInfo = ins_t('install.env.rewrite_na');
     }
-    $items[] = array('name' => 'URL 重写能力', 'ok' => true, 'info' => $rewriteInfo, 'soft' => true);
+    $items[] = array('name' => ins_t('install.env.rewrite_name'), 'ok' => true, 'info' => $rewriteInfo, 'soft' => true);
     return $items;
 }
 
@@ -139,6 +232,14 @@ function ins_env_check()
  */
 function ins_pdo($host, $port, $user, $pass, $dbname = '')
 {
+    // DSN 注入防护：host 仅允许主机名/IP/IPv6 字符集，dbname 拒绝分隔符，
+    // 防止 ";host=evil" 之类输入把连接重定向到攻击者控制的 MySQL
+    if (!preg_match('/^[A-Za-z0-9.\-:]+$/', (string) $host)) {
+        throw new InvalidArgumentException('数据库主机名包含非法字符');
+    }
+    if ($dbname !== '' && strpos($dbname, ';') !== false) {
+        throw new InvalidArgumentException('数据库名包含非法字符');
+    }
     $dsn = 'mysql:host=' . $host . ';port=' . (int) $port . ';charset=utf8mb4';
     if ($dbname !== '') {
         $dsn .= ';dbname=' . $dbname;
@@ -174,7 +275,7 @@ function ins_do_install($dbConf, $admin)
 
     // 默认 options（安全默认值与 plan.md §4 一致，禁止调低安全水位）
     $options = array(
-        'site_name'               => isset($admin['site_name']) && $admin['site_name'] !== '' ? $admin['site_name'] : '我的博客',
+        'site_name'               => isset($admin['site_name']) && $admin['site_name'] !== '' ? $admin['site_name'] : ins_t('install.do.default_site_name'),
         'site_motto'              => isset($admin['site_motto']) ? $admin['site_motto'] : '',
         'site_description'        => '',
         'site_created_year'       => date('Y'),
@@ -185,6 +286,8 @@ function ins_do_install($dbConf, $admin)
         'active_plugins'          => '[]',
         'rewrite_enabled'         => isset($admin['rewrite_enabled']) ? $admin['rewrite_enabled'] : '1',
         'timezone'                => 'Asia/Shanghai',
+        // 后台语言：步骤三下拉选择（白名单校验在 do_install 分支），缺省中文
+        'admin_locale'            => isset($admin['admin_locale']) && $admin['admin_locale'] !== '' ? $admin['admin_locale'] : 'zh_CN',
         'register_disabled'       => '0',
         'log_retention_days'      => '180',
         'login_max_fail'          => '5',
@@ -221,40 +324,41 @@ function ins_do_install($dbConf, $admin)
         ));
     }
 
-    // 默认分类与欢迎文章
+    // 默认分类与欢迎文章（文案随安装向导语言）
     $catCount = $pdo->query('SELECT COUNT(*) FROM `' . $prefix . 'categories`')->fetchColumn();
     if ((int) $catCount === 0) {
-        $pdo->exec('INSERT INTO `' . $prefix . 'categories` (name, slug, description, sort) VALUES
-            ("默认分类", "default", "站点默认分类", 0)');
+        $catIns = $pdo->prepare('INSERT INTO `' . $prefix . 'categories` (name, slug, description, sort) VALUES (?, "default", ?, 0)');
+        $catIns->execute(array(ins_t('install.do.default_category'), ins_t('install.do.default_category_desc')));
     }
     $postCount = $pdo->query('SELECT COUNT(*) FROM `' . $prefix . 'posts`')->fetchColumn();
     if ((int) $postCount === 0) {
         $adminId = (int) $pdo->query('SELECT id FROM `' . $prefix . 'users` WHERE role = "admin" ORDER BY id ASC LIMIT 1')->fetchColumn();
-        $welcome = "# 欢迎使用本博客系统\n\n这是安装程序创建的第一篇文章，你可以在后台编辑或删除它。\n\n- Markdown 编写\n- 本地化静态资源\n- 等保二级安全设计";
+        $welcome = ins_t('install.do.welcome_post');
         $p = $pdo->prepare('INSERT INTO `' . $prefix . 'posts`
             (author_id, title, slug, content, excerpt, category_id, status, is_page, views, created_at, updated_at)
-            VALUES (?, "你好，世界", "hello-world", ?, ?, 1, "published", 0, 0, ?, ?)');
-        $p->execute(array($adminId, $welcome, mb_substr(strip_tags($welcome), 0, 120), $now, $now));
+            VALUES (?, ?, "hello-world", ?, ?, 1, "published", 0, 0, ?, ?)');
+        $p->execute(array($adminId, ins_t('install.do.welcome_title'), $welcome, mb_substr(strip_tags($welcome), 0, 120), $now, $now));
     }
 
-    // 生成 config.php（DB 配置 + 64 位随机密钥）
+    // 生成 config.php（DB 配置 + 64 位随机密钥；var_export 与 PHP 源码语义同构，天然安全转义）
     $key = bin2hex(random_bytes(32));
+    $configData = array(
+        'db' => array(
+            'host'   => $dbConf['host'],
+            'port'   => (int) $dbConf['port'],
+            'name'   => $dbConf['name'],
+            'user'   => $dbConf['user'],
+            'pass'   => $dbConf['pass'],
+            'prefix' => $prefix,
+        ),
+        'key' => $key,
+    );
     $config = "<?php\n"
         . "/**\n * 站点配置：由安装程序生成，请勿泄露；禁止 HTTP 直接访问\n */\n"
         . "defined('APP_BOOT') or exit;\n\n"
-        . "return array(\n"
-        . "    'db' => array(\n"
-        . "        'host' => '" . addslashes($dbConf['host']) . "',\n"
-        . "        'port' => " . (int) $dbConf['port'] . ",\n"
-        . "        'name' => '" . addslashes($dbConf['name']) . "',\n"
-        . "        'user' => '" . addslashes($dbConf['user']) . "',\n"
-        . "        'pass' => '" . addslashes($dbConf['pass']) . "',\n"
-        . "        'prefix' => '" . addslashes($prefix) . "',\n"
-        . "    ),\n"
-        . "    'key' => '" . $key . "',\n"
-        . ");\n";
+        . 'return ' . var_export($configData, true) . ";\n";
     if (file_put_contents(APP_ROOT . '/config.php', $config) === false) {
-        throw new RuntimeException('写入 config.php 失败，请检查站点根目录权限');
+        throw new RuntimeException(ins_t('install.do.write_config_fail'));
     }
 
     // 安装锁
@@ -288,7 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo = ins_pdo($dbHost, $dbPort, $dbUser, $passUse, $dbName);
             $pdo->query('SELECT 1');
-            $message = '数据库连接成功';
+            $message = ins_t('install.db.connect_ok');
             $messageType = 'ok';
             $_SESSION['ins_db'] = array(
                 'host' => $dbHost, 'port' => (string) $dbPort,
@@ -297,7 +401,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'prefix' => $dbPrefix,
             );
         } catch (Exception $ex) {
-            $message = '连接失败：' . $ex->getMessage();
+            $message = ins_t('install.db.connect_fail') . $ex->getMessage();
             $messageType = 'err';
         }
         $step = 2;
@@ -327,7 +431,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . ins_base() . '/index.php?step=3');
             exit;
         } catch (Exception $ex) {
-            $message = '数据库连接失败：' . $ex->getMessage();
+            $message = ins_t('install.db.connect_fail') . $ex->getMessage();
             $messageType = 'err';
             $step = 2;
         }
@@ -336,7 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 提交管理员信息并执行安装
     if ($action === 'do_install') {
         if (empty($_SESSION['ins_db'])) {
-            $message = '请先完成数据库配置';
+            $message = ins_t('install.admin.need_db');
             $messageType = 'err';
             $step = 2;
         } else {
@@ -350,14 +454,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone = input_text('phone', '', 16, 'post');
             $siteName = input_text('site_name', '', 64, 'post');
             $motto = input_text('site_motto', '', 128, 'post');
+            // 后台语言：可选项白名单（zh_CN 基线 + assets/langs 扫描），非法值回退中文
+            $adminLocale = input_enum('admin_locale', array_keys(ins_admin_locales()), 'zh_CN', 'post');
 
             do {
                 if (!preg_match('/^[a-zA-Z0-9_]{3,32}$/', $username)) {
-                    $message = '用户名为 3-32 位字母、数字或下划线';
+                    $message = ins_t('install.admin.username_invalid');
                     break;
                 }
                 if ($password !== $password2) {
-                    $message = '两次输入的密码不一致';
+                    $message = ins_t('install.admin.password_mismatch');
                     break;
                 }
                 // 服务端强制口令复杂度校验（与注册/改密同规则）
@@ -367,11 +473,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
                 }
                 if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $message = '邮箱格式不正确';
+                    $message = ins_t('install.admin.email_invalid');
                     break;
                 }
                 if ($phone !== '' && !preg_match('/^1[3-9]\d{9}$/', $phone)) {
-                    $message = '手机号格式不正确';
+                    $message = ins_t('install.admin.phone_invalid');
                     break;
                 }
 
@@ -380,12 +486,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'username' => $username, 'nickname' => $nickname, 'password' => $password,
                         'email' => $email, 'phone' => $phone,
                         'site_name' => $siteName, 'site_motto' => $motto,
+                        'admin_locale' => $adminLocale,
                         'rewrite_enabled' => isset($_POST['rewrite_enabled']) ? '1' : '0',
                     ));
                     unset($_SESSION['ins_db']);
                     $step = 4;
                 } catch (Exception $ex) {
-                    $message = '安装失败：' . $ex->getMessage();
+                    $message = ins_t('install.do.fail') . $ex->getMessage();
                     $messageType = 'err';
                     $step = 3;
                 }
@@ -405,15 +512,20 @@ foreach ($envItems as $item) {
     }
 }
 $dbConf = ins_db_config_from_session();
-$steps = array(1 => '环境自检', 2 => '数据库配置', 3 => '管理员信息', 4 => '安装完成');
+$steps = array(
+    1 => ins_t('install.step.1'),
+    2 => ins_t('install.step.2'),
+    3 => ins_t('install.step.3'),
+    4 => ins_t('install.step.4'),
+);
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="<?php echo ins_lang() === 'zh_CN' ? 'zh-CN' : 'en-US'; ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>安装向导 - 第 <?php echo $step; ?> 步</title>
+<title><?php echo ins_e(ins_t('install.common.title', array($step))); ?></title>
 <style>
 /* 安装向导视觉对齐前台默认主题（宣纸极简）：米白纸面 + 青绿主色 + 细边框卡片 */
 body{
@@ -430,12 +542,12 @@ h1{font-size:22px;margin:0 0 20px;font-family:"Noto Serif SC","Songti SC","STSon
 .steps span{padding:4px 12px;border-radius:14px;background:#F0EDE5;border:1px solid #E0DBD0;color:#6B6B6B}
 .steps span.on{background:#4A7C7E;border-color:#4A7C7E;color:#fff}
 label{display:block;margin:12px 0 4px;font-size:14px;color:#555}
-input[type=text],input[type=password],input[type=number],input[type=email],input[type=tel]{
+input[type=text],input[type=password],input[type=number],input[type=email],input[type=tel],select{
     width:100%;box-sizing:border-box;padding:8px 12px;
     border:1px solid #E0DBD0;border-radius:6px;font-size:14px;
     background:#fff;color:#2B2B2B;outline:none;transition:border-color .2s;
 }
-input:focus{border-color:#4A7C7E}
+input:focus,select:focus{border-color:#4A7C7E}
 .btn{
     display:inline-block;margin-top:20px;padding:9px 22px;
     background:#4A7C7E;color:#fff;border:0;border-radius:6px;
@@ -454,12 +566,23 @@ td,th{border-bottom:1px solid #E0DBD0;padding:8px 6px;text-align:left}
 th{background:#F0EDE5;color:#6B6B6B;white-space:nowrap}
 .pass{color:#2F9E5F}.fail{color:#B4503C}
 .hint{font-size:12px;color:#999;margin-top:4px}
+/* 语言切换：右上角，当前语言加粗不可点 */
+.lang-switch{text-align:right;font-size:13px;margin-bottom:12px}
+.lang-switch a{color:#4A7C7E;text-decoration:none}
+.lang-switch strong{color:#2B2B2B}
 @media (max-width:480px){body{padding:20px 10px}.box{padding:20px 16px}}
 </style>
 </head>
 <body>
 <div class="box">
-<h1>博客系统安装向导</h1>
+<div class="lang-switch">
+<?php if (ins_lang() === 'zh_CN'): ?>
+    <strong>中文</strong> · <a href="<?php echo ins_e(ins_base()); ?>/index.php?step=<?php echo (int) $step; ?>&lang=en_US">English</a>
+<?php else: ?>
+    <a href="<?php echo ins_e(ins_base()); ?>/index.php?step=<?php echo (int) $step; ?>&lang=zh_CN">中文</a> · <strong>English</strong>
+<?php endif; ?>
+</div>
+<h1><?php echo ins_e(ins_t('install.common.heading')); ?></h1>
 <div class="steps">
 <?php foreach ($steps as $i => $label): ?>
     <span class="<?php echo $i === $step ? 'on' : ''; ?>"><?php echo $i; ?>. <?php echo ins_e($label); ?></span>
@@ -473,72 +596,84 @@ th{background:#F0EDE5;color:#6B6B6B;white-space:nowrap}
 <?php if ($step === 1): ?>
 <div class="table-wrap">
 <table>
-<tr><th>检查项</th><th>结果</th><th>说明</th></tr>
+<tr><th><?php echo ins_e(ins_t('install.env.col_name')); ?></th><th><?php echo ins_e(ins_t('install.env.col_result')); ?></th><th><?php echo ins_e(ins_t('install.env.col_info')); ?></th></tr>
 <?php foreach ($envItems as $item): ?>
 <tr>
     <td><?php echo ins_e($item['name']); ?></td>
-    <td class="<?php echo $item['ok'] ? 'pass' : 'fail'; ?>"><?php echo $item['ok'] ? '✔ 通过' : '✘ 不通过'; ?></td>
+    <td class="<?php echo $item['ok'] ? 'pass' : 'fail'; ?>"><?php echo ins_e($item['ok'] ? ins_t('install.env.pass') : ins_t('install.env.fail')); ?></td>
     <td><?php echo ins_e($item['info']); ?></td>
 </tr>
 <?php endforeach; ?>
 </table>
 </div>
 <?php if ($envPass): ?>
-    <a class="btn" href="<?php echo ins_e(ins_base()); ?>/index.php?step=2">下一步：数据库配置</a>
+    <a class="btn" href="<?php echo ins_e(ins_base()); ?>/index.php?step=2"><?php echo ins_e(ins_t('install.env.next')); ?></a>
 <?php else: ?>
-    <p class="fail">环境自检未通过，请先解决上述红色项后刷新本页。</p>
+    <p class="fail"><?php echo ins_e(ins_t('install.env.blocked')); ?></p>
 <?php endif; ?>
 
 <?php elseif ($step === 2): ?>
 <form method="post" action="<?php echo ins_e(ins_base()); ?>/index.php?step=2">
     <input type="hidden" name="_csrf" value="<?php echo ins_e(ins_csrf()); ?>">
-    <label>数据库地址</label>
+    <label><?php echo ins_e(ins_t('install.db.host')); ?></label>
     <input type="text" name="host" value="<?php echo ins_e($dbConf['host']); ?>" required>
-    <label>端口</label>
+    <label><?php echo ins_e(ins_t('install.db.port')); ?></label>
     <input type="number" name="port" value="<?php echo ins_e($dbConf['port']); ?>" required>
-    <label>数据库名</label>
+    <label><?php echo ins_e(ins_t('install.db.name')); ?></label>
     <input type="text" name="name" value="<?php echo ins_e($dbConf['name']); ?>" required>
-    <label>用户名</label>
+    <label><?php echo ins_e(ins_t('install.db.user')); ?></label>
     <input type="text" name="user" value="<?php echo ins_e($dbConf['user']); ?>" required>
-    <div class="hint">遵循最小权限原则：仅需 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/ALTER，禁止使用 root</div>
-    <label>密码</label>
+    <div class="hint"><?php echo ins_e(ins_t('install.db.user_hint')); ?></div>
+    <label><?php echo ins_e(ins_t('install.db.pass')); ?></label>
     <?php // 密码不回显到页面源码，避免明文泄露；Session 中仍保留供提交使用 ?>
-    <input type="password" name="pass" value="" placeholder="<?php echo $dbConf['pass'] !== '' ? '已暂存，留空则沿用' : ''; ?>">
-    <label>表前缀（仅字母数字下划线）</label>
+    <input type="password" name="pass" value="" placeholder="<?php echo $dbConf['pass'] !== '' ? ins_e(ins_t('install.db.pass_saved')) : ''; ?>">
+    <label><?php echo ins_e(ins_t('install.db.prefix')); ?></label>
     <input type="text" name="prefix" value="<?php echo ins_e($dbConf['prefix']); ?>" required>
-    <button class="btn gray" type="submit" name="action" value="test_db">测试连接</button>
-    <button class="btn" type="submit" name="action" value="save_db">下一步：管理员信息</button>
+    <button class="btn gray" type="submit" name="action" value="test_db"><?php echo ins_e(ins_t('install.db.test')); ?></button>
+    <button class="btn" type="submit" name="action" value="save_db"><?php echo ins_e(ins_t('install.db.next')); ?></button>
 </form>
 
 <?php elseif ($step === 3): ?>
 <form method="post" action="<?php echo ins_e(ins_base()); ?>/index.php?step=3">
     <input type="hidden" name="_csrf" value="<?php echo ins_e(ins_csrf()); ?>">
-    <label>站点名称</label>
-    <input type="text" name="site_name" value="我的博客">
-    <label>一句话座右铭（可选）</label>
+    <label><?php echo ins_e(ins_t('install.admin.site_name')); ?></label>
+    <input type="text" name="site_name" value="<?php echo ins_e(ins_t('install.do.default_site_name')); ?>">
+    <label><?php echo ins_e(ins_t('install.admin.motto')); ?></label>
     <input type="text" name="site_motto" value="">
-    <label>管理员用户名</label>
+    <label><?php echo ins_e(ins_t('install.admin.locale_label')); ?></label>
+    <select name="admin_locale">
+        <?php
+        // 默认跟随安装向导当前语言（无对应后台包时回退中文）
+        $localeList = ins_admin_locales();
+        $localeDefault = isset($localeList[ins_lang()]) ? ins_lang() : 'zh_CN';
+        foreach ($localeList as $localeCode => $localeName):
+        ?>
+        <option value="<?php echo ins_e($localeCode); ?>"<?php echo $localeCode === $localeDefault ? ' selected' : ''; ?>><?php echo ins_e($localeName); ?></option>
+        <?php endforeach; ?>
+    </select>
+    <div class="hint"><?php echo ins_e(ins_t('install.admin.locale_hint')); ?></div>
+    <label><?php echo ins_e(ins_t('install.admin.username')); ?></label>
     <input type="text" name="username" required>
-    <label>昵称（可选）</label>
+    <label><?php echo ins_e(ins_t('install.admin.nickname')); ?></label>
     <input type="text" name="nickname">
-    <label>管理员密码</label>
+    <label><?php echo ins_e(ins_t('install.admin.password')); ?></label>
     <input type="password" name="password" required>
-    <div class="hint">8-64 位；大写字母/小写字母/数字/特殊字符至少三类；不含用户名；不得为常见弱口令</div>
-    <label>确认密码</label>
+    <div class="hint"><?php echo ins_e(ins_t('install.admin.password_hint')); ?></div>
+    <label><?php echo ins_e(ins_t('install.admin.password2')); ?></label>
     <input type="password" name="password2" required>
-    <label>邮箱</label>
+    <label><?php echo ins_e(ins_t('install.admin.email')); ?></label>
     <input type="text" name="email">
-    <label>手机号（可选）</label>
+    <label><?php echo ins_e(ins_t('install.admin.phone')); ?></label>
     <input type="text" name="phone">
-    <label><input type="checkbox" name="rewrite_enabled" checked> 已配置 URL 伪静态重写（未配置请取消勾选，将使用 index.php?r= 回退模式）</label>
-    <button class="btn" type="submit" name="action" value="do_install">开始安装</button>
+    <label><input type="checkbox" name="rewrite_enabled" checked> <?php echo ins_e(ins_t('install.admin.rewrite_label')); ?></label>
+    <button class="btn" type="submit" name="action" value="do_install"><?php echo ins_e(ins_t('install.admin.submit')); ?></button>
 </form>
 
 <?php else: ?>
-<div class="msg ok">安装完成！请牢记管理员账号。</div>
-<p>安全提示：install/ 目录已被 install.lock 锁定；建议删除或妥善保管安装程序。</p>
-<a class="btn" href="<?php echo ins_e(ins_site_base()); ?>/">访问前台首页</a>
-<a class="btn gray" href="<?php echo ins_e(ins_site_base()); ?>/user/index.php">进入后台登录</a>
+<div class="msg ok"><?php echo ins_e(ins_t('install.done.msg')); ?></div>
+<p><?php echo ins_e(ins_t('install.done.tip')); ?></p>
+<a class="btn" href="<?php echo ins_e(ins_site_base()); ?>/"><?php echo ins_e(ins_t('install.done.front')); ?></a>
+<a class="btn gray" href="<?php echo ins_e(ins_site_base()); ?>/user/index.php"><?php echo ins_e(ins_t('install.done.admin')); ?></a>
 <?php endif; ?>
 
 </div>

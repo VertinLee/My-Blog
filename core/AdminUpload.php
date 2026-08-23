@@ -20,7 +20,7 @@ class AdminUpload
     public static function imageAction()
     {
         Auth::require_cap('upload');
-        $relative = self::saveImage(2 * 1024 * 1024, '图片大小须在 2MB 以内');
+        $relative = self::saveImage(2 * 1024 * 1024, admin_t('admin.upload.image_size'));
         blog_log('post', 'upload.image', 'success', array('path' => $relative));
         // 同时返回相对路径：文章封面表单只接受 uploads/ 开头的相对路径（与头像接口一致）
         json_out(array('code' => 0, 'msg' => 'ok', 'data' => array(
@@ -33,7 +33,7 @@ class AdminUpload
     public static function avatarAction()
     {
         Auth::require_cap('edit_profile');
-        $relative = self::saveImage(1024 * 1024, '头像大小须在 1MB 以内');
+        $relative = self::saveImage(1024 * 1024, admin_t('admin.upload.avatar_size'));
         blog_log('user', 'upload.avatar', 'success', array('path' => $relative));
         // 同时返回相对路径：个人资料表只接受 uploads/ 开头的相对路径
         json_out(array('code' => 0, 'msg' => 'ok', 'data' => array(
@@ -53,11 +53,11 @@ class AdminUpload
     private static function saveImage($maxBytes, $sizeMsg)
     {
         if (empty($_FILES['file'])) {
-            json_out(array('code' => 1, 'msg' => '未收到文件'));
+            json_out(array('code' => 1, 'msg' => admin_t('admin.upload.no_file')));
         }
         $file = $_FILES['file'];
         if ((int) $file['error'] !== UPLOAD_ERR_OK) {
-            json_out(array('code' => 1, 'msg' => '上传失败（错误码 ' . (int) $file['error'] . '）'));
+            json_out(array('code' => 1, 'msg' => admin_t('admin.upload.error_code', array((int) $file['error']))));
         }
         if ((int) $file['size'] > $maxBytes || (int) $file['size'] <= 0) {
             json_out(array('code' => 1, 'msg' => $sizeMsg));
@@ -66,19 +66,19 @@ class AdminUpload
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime = $finfo->file($file['tmp_name']);
         if (!isset(self::$mimeMap[$mime])) {
-            json_out(array('code' => 1, 'msg' => '仅支持 jpg/png/webp/gif 图片'));
+            json_out(array('code' => 1, 'msg' => admin_t('admin.upload.mime_whitelist')));
         }
 
         $subDir = date('Y/m');
         $targetDir = APP_ROOT . '/uploads/' . $subDir;
         if (!is_dir($targetDir) && !mkdir($targetDir, 0755, true)) {
-            json_out(array('code' => 1, 'msg' => '上传目录创建失败'));
+            json_out(array('code' => 1, 'msg' => admin_t('admin.upload.dir_failed')));
         }
         // 用文件内容 md5 命名：内容相同的图片得到相同文件名，命中已存在文件则跳过落盘（秒传去重）
         $dest = $targetDir . '/' . md5_file($file['tmp_name']) . '.' . self::$mimeMap[$mime];
         if (!is_file($dest)) {
             if (!move_uploaded_file($file['tmp_name'], $dest)) {
-                json_out(array('code' => 1, 'msg' => '文件保存失败'));
+                json_out(array('code' => 1, 'msg' => admin_t('admin.upload.save_failed')));
             }
         }
         return 'uploads/' . $subDir . '/' . basename($dest);
