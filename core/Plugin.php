@@ -82,8 +82,11 @@ class Plugin
 
     /**
      * 解析插件主文件头部元数据（同 WordPress 格式）
+     *
+     * @param string $file 主文件路径
+     * @return array|null 元数据；缺 Plugin Name 时返回 null（不识别为插件）
      */
-    private static function parseMeta($file)
+    public static function parseMeta($file)
     {
         $head = file_get_contents($file, false, null, 0, 2048);
         if ($head === false) {

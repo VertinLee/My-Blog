@@ -95,20 +95,31 @@ class AdminUser
             flash_set('error', admin_t('admin.user.gen_pwd_error', array($err)));
             redirect(site_base_admin('user/edit'));
         }
-        $newId = DB::insert('users', array(
-            'username'            => $username,
-            'nickname'            => $nickname !== '' ? $nickname : $username,
-            'password'            => password_hash($password, PASSWORD_DEFAULT),
-            'email'               => $email !== '' ? $email : null,
-            'phone'               => $phone,
-            'avatar'              => '',
-            'role'                => $role,
-            'status'              => 1,
-            // 勾选“下次登录强制改密”：将改密时间置为过期阈值之前
-            'password_changed_at' => $forceChange ? '2000-01-01 00:00:00' : now(),
-            'login_fail'          => 0,
-            'created_at'          => now(),
-        ));
+        // 前置唯一性查重存在并发窗口（TOCTOU）：撞唯一索引时捕获重复键异常转为友好提示，
+        // 避免裸 PDOException 暴露 500
+        try {
+            $newId = DB::insert('users', array(
+                'username'            => $username,
+                'nickname'            => $nickname !== '' ? $nickname : $username,
+                'password'            => password_hash($password, PASSWORD_DEFAULT),
+                'email'               => $email !== '' ? $email : null,
+                'phone'               => $phone,
+                'avatar'              => '',
+                'role'                => $role,
+                'status'              => 1,
+                // 勾选“下次登录强制改密”：将改密时间置为过期阈值之前
+                'password_changed_at' => $forceChange ? '2000-01-01 00:00:00' : now(),
+                'login_fail'          => 0,
+                'created_at'          => now(),
+            ));
+        } catch (PDOException $ex) {
+            if ($ex->getCode() === '23000') {
+                blog_log('user', 'user.create', 'fail', array('username' => $username, 'reason' => 'duplicate'));
+                flash_set('error', '用户名/邮箱/手机号已被占用（并发冲突），请重试');
+                redirect(site_base_admin('user/edit'));
+            }
+            throw $ex;
+        }
         blog_log('user', 'user.create', 'success', array(
             'user_id' => $newId, 'username' => $username, 'role' => $role,
         ));

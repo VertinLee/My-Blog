@@ -161,7 +161,7 @@ id / name / slug UNIQUE / description / sort。
 | category | VARCHAR(24) | 事件类别：auth/post/comment/user/setting/template/plugin/verify/security |
 | action | VARCHAR(64) | 具体动作，如 `login`、`login.fail`、`user.role_change` |
 | result | ENUM('success','fail') | 事件结果（等保要求记录成败） |
-| detail | TEXT | 脱敏后的详情（JSON），禁止含明文密码/验证码/密钥 |
+| detail | TEXT | 脱敏后的详情（JSON），禁止含明文密码/验证码/密钥；键名 `content` 为正文快照（如评论发布/修改），保留原文不打码 |
 | ip | VARCHAR(45) | 支持 IPv6 |
 | ua | VARCHAR(255) | |
 | created_at | DATETIME | |
@@ -352,6 +352,7 @@ id / name / slug UNIQUE / description / sort。
 
 ### 7.5 插件管理页（仅管理员）
 列表（名称/版本/作者/描述/状态）、启用、禁用、删除（删除目录，二次确认）、插件设置页入口。插件文件必须位于 `plugins/` 且头部元数据合法才会被发现。
+支持后台上传插件 zip 安装：slug 由包内 `{slug}.php` 主文件推导（头部须含 `Plugin Name`），条目安全白名单与主题上传共用 `core/ZipSafe.php`；同名插件执行覆盖更新（`Plugin Name` 不一致拒绝、旧目录备份+失败回滚），审计记 `plugin.upload`/`plugin.update` 成败两类。
 不规范卸载安全网：启用列表读取时自动剔除目录已不存在的 slug（写审计）；列表页检测目录已删但仍有残留数据的插件，提供一键清理入口（复用卸载回收逻辑）。
 
 ### 7.6 插件开发文档
@@ -407,7 +408,7 @@ id / name / slug UNIQUE / description / sort。
 - **页面类型**：`index.php`（首页/列表）、`single.php`（文章详情 + 评论区 + 评论表单[登录可见]）、`page.php`（独立页面如"关于我"）、`archive.php`（分类/作者归档）、`search.php`、`404.php`。
 - **模板结构（仿 WP）**：`header.php`、`footer.php`、`sidebar.php`、`functions.php`（主题自己的钩子/助手）、`style.css`。
 - **模板 API**：`site_name()`、`site_motto()`、`the_posts()`、`the_title()`、`the_date()`、`the_category()`、`the_excerpt()`、`the_content()`、`paginate()`、`comment_list()` 等；模板内禁止直接操作 DB。
-- **模板管理页**（仅管理员）：主题列表（读取 style.css 头部元数据：Theme Name/Author/Version/Description）、启用、禁用、删除；支持上传主题 zip 包（服务端校验后解压到 `themes/`）。
+- **模板管理页**（仅管理员）：主题列表（读取 style.css 头部元数据：Theme Name/Author/Version/Description）、启用、禁用、删除；支持上传主题 zip 包（服务端校验后解压到 `themes/`），同名主题可覆盖更新（`Theme Name` 不一致拒绝；`default` 与启用中主题不可覆盖；旧目录备份+失败回滚），审计记 `theme.upload`/`theme.update` 成败两类。
 
 ---
 
@@ -425,7 +426,7 @@ id / name / slug UNIQUE / description / sort。
   - verify：验证码发送与核验（由 SMTP/短信插件接入）。
 - **审计记录保护（只增不改）**：Logger 与 DB 封装不提供 logs 表的 UPDATE/DELETE 接口；后台无编辑/删除单条日志功能；仅支持到期自动归档清理（按 `log_retention_days`，默认 180 天，下限 180）与管理员导出归档。
 - **日志中心**（仅管理员）：按用户/类别/动作/结果/日期/IP 组合筛选、分页、CSV 导出；查询与导出行为本身写入 `category=security` 审计记录。CSV 导出对全部字段做公式注入中和（`csv_safe()`：以 `=` `+` `-` `@` 或 TAB/CR 开头的值前置单引号），防止 UA/详情等攻击者可控内容在 Excel/WPS 中被当作公式执行。
-- **脱敏红线**：日志与报错中禁止出现明文密码、明文验证码、AccessKeySecret、SMTP 授权码；邮箱/手机号在 detail 中默认脱敏（如 `138****1234`、`a***@x.com`）。
+- **脱敏红线**：日志与报错中禁止出现明文密码、明文验证码、AccessKeySecret、SMTP 授权码；邮箱/手机号在 detail 中默认脱敏（如 `138****1234`、`a***@x.com`）；唯一例外是 detail 中键名为 `content` 的业务正文快照（如评论发布/修改审计），为满足取证一致性保留原文。
 - **备份建议**：README 提供 logs 表 mysqldump 定期备份与异地留存指引（等保二级"审计记录定期备份"）。
 
 ---

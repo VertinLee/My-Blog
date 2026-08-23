@@ -128,9 +128,11 @@ class AdminPost
             redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
         }
 
-        // 封面与头像同一口径：仅允许站内 uploads/ 下相对路径，拒绝 .. 防路径穿越与站外引用
+        // 封面与头像同一口径：仅允许站内 uploads/ 下相对路径且扩展名须为图片白名单
+        // （与上传口径一致），拒绝 .. 防路径穿越与站外引用
         if ($cover !== ''
-            && (strpos($cover, '..') !== false || !preg_match('#^uploads/[A-Za-z0-9/._-]+$#', $cover))
+            && (strpos($cover, '..') !== false
+                || !preg_match('#^uploads/[A-Za-z0-9/._-]+\.(jpe?g|png|webp|gif)$#i', $cover))
         ) {
             flash_set('error', admin_t('admin.post.cover_invalid'));
             redirect(site_base_admin('post/edit' . ($id > 0 ? '&id=' . $id : '')));
@@ -155,14 +157,17 @@ class AdminPost
             }
         }
 
-        // 文章审核开关：开启时非管理员提交发布一律转 pending
+        // 文章审核开关：开启时无审核权者提交"发布"一律转 pending（moderate_posts 仅管理员持有，
+        // 等价于原 isAdmin 判断，合并两处冗余分支）；但编辑存量已发布文章（如改错别字）保留
+        // published 不下架——下架应走删除/回收站通道，而非编辑保存的副作用
         $postAudit = Option::get('post_audit', '0') === '1';
-        if ($status === 'published' && $postAudit && !Auth::isAdmin()) {
-            $status = 'pending';
-        }
-        // 非管理员不允许直接发布（审核开启时）
-        if ($status === 'published' && $postAudit && !Auth::check_cap('moderate_posts')) {
-            $status = 'pending';
+        if ($postAudit && !Auth::check_cap('moderate_posts')) {
+            $oldStatus = $id > 0 ? DB::query('posts')->where('id', '=', $id)->value('status') : null;
+            if ($oldStatus === 'published') {
+                $status = 'published';
+            } elseif ($status === 'published') {
+                $status = 'pending';
+            }
         }
 
         $data = array(

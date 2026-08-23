@@ -11,6 +11,7 @@ require APP_ROOT . '/core/AdminCategory.php';
 require APP_ROOT . '/core/AdminUser.php';
 require APP_ROOT . '/core/AdminSetting.php';
 require APP_ROOT . '/core/AdminTheme.php';
+require APP_ROOT . '/core/ZipSafe.php';
 require APP_ROOT . '/core/AdminPlugin.php';
 require APP_ROOT . '/core/AdminLog.php';
 require APP_ROOT . '/core/AdminProfile.php';

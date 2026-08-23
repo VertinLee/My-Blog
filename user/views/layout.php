@@ -130,7 +130,14 @@ $flashMsgs = flash_pull();
                 <?php echo e($fm['text']); ?>
             </div>
             <?php endforeach; ?>
-            <?php include APP_ROOT . '/user/views/' . $view . '.php'; ?>
+            <?php
+            // 视图名白名单守卫：当前调用点均为硬编码字面量，此防御防未来扩展点注入非法视图路径
+            if (!preg_match('/^[a-z_]+$/', (string) $view)) {
+                http_response_code(500);
+                exit;
+            }
+            include APP_ROOT . '/user/views/' . $view . '.php';
+            ?>
             <div class="admin-footnote"><?php echo e(site_name()); ?> · <?php echo e(admin_t('admin.common.admin_panel')); ?></div>
         </main>
     </div>

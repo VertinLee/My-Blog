@@ -27,9 +27,10 @@ class AdminProfile
         $avatar = input_text('avatar', '', 255, 'post');
         $password = input_password('password');
 
-        // 头像仅允许站内 uploads/ 下的相对路径；拒绝 .. 防路径穿越
+        // 头像仅允许站内 uploads/ 下的相对路径且扩展名须为图片白名单；拒绝 .. 防路径穿越
         if ($avatar !== ''
-            && (strpos($avatar, '..') !== false || !preg_match('#^uploads/[A-Za-z0-9/._-]+$#', $avatar))
+            && (strpos($avatar, '..') !== false
+                || !preg_match('#^uploads/[A-Za-z0-9/._-]+\.(jpe?g|png|webp|gif)$#i', $avatar))
         ) {
             flash_set('error', admin_t('admin.profile.avatar_invalid'));
             redirect(site_base_admin('profile'));

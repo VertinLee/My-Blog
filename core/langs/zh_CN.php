@@ -203,6 +203,7 @@ return array(
     'admin.comment.rejected'         => '评论已驳回',
     'admin.comment.trashed'          => '评论已移入回收站',
     'admin.comment.restored'         => '评论已恢复',
+    'admin.comment.restored_pending' => '评论已恢复，待审核通过后发布',
 
     /* ---------- 分类 ---------- */
     'admin.category.add'            => '新增分类',
@@ -340,7 +341,7 @@ return array(
     'admin.theme.zip_too_large'     => 'zip 文件不得超过 10MB',
     'admin.theme.zip_only'          => '仅支持 .zip 格式',
     'admin.theme.zip_ext_missing'   => '服务器未启用 ZipArchive 扩展，无法解压主题包',
-    'admin.theme.dir_invalid'       => '主题目录名非法或已存在',
+    'admin.theme.dir_invalid'       => '主题目录名非法或为保留主题',
     'admin.theme.zip_open_failed'   => 'zip 文件无法打开',
     'admin.theme.zip_bad_path'      => 'zip 包含非法路径条目',
     'admin.theme.zip_bad_entry'     => 'zip 包含不允许的条目：%s',
@@ -348,6 +349,9 @@ return array(
     'admin.theme.dir_create_failed' => '主题目录创建失败',
     'admin.theme.zip_extract_failed'=> 'zip 解压失败',
     'admin.theme.uploaded'          => '主题已上传：%s',
+    'admin.theme.updated'           => '主题已覆盖更新：%s',
+    'admin.theme.no_overwrite_active' => '不能覆盖更新当前启用的主题，请先切换到其他主题',
+    'admin.theme.name_mismatch'     => '包内 Theme Name 与现有主题不一致，已拒绝覆盖',
 
     /* ---------- 插件管理 ---------- */
     'admin.plugin.orphan_tip'        => '以下插件的目录已不存在（可能被直接删除而非经后台卸载），但其配置与数据仍残留在数据库中：',

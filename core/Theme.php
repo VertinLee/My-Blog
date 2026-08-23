@@ -181,17 +181,36 @@ class Theme
             if (!is_file($css)) {
                 continue;
             }
-            $head = file_get_contents($css, false, null, 0, 2048);
-            $meta = array('dir' => $item, 'name' => $item, 'author' => '', 'version' => '', 'description' => '');
-            $map = array('name' => 'Theme Name', 'author' => 'Author', 'version' => 'Version', 'description' => 'Description');
-            foreach ($map as $key => $label) {
-                if (preg_match('/\/\*[\s\S]*?' . preg_quote($label, '/') . '\s*:\s*([^\n*]+)/i', $head, $m)) {
-                    $meta[$key] = trim($m[1]);
-                }
+            $meta = self::headerOf($css);
+            $meta['dir'] = $item;
+            if ($meta['name'] === '') {
+                $meta['name'] = $item;
             }
             $themes[$item] = $meta;
         }
         return $themes;
+    }
+
+    /**
+     * 解析 style.css 头部注释元数据（Theme Name/Author/Version/Description，只读前 2048 字节）
+     *
+     * @param string $cssFile style.css 路径
+     * @return array name/author/version/description（缺字段为空串）
+     */
+    public static function headerOf($cssFile)
+    {
+        $head = file_get_contents($cssFile, false, null, 0, 2048);
+        $meta = array('name' => '', 'author' => '', 'version' => '', 'description' => '');
+        if ($head === false) {
+            return $meta;
+        }
+        $map = array('name' => 'Theme Name', 'author' => 'Author', 'version' => 'Version', 'description' => 'Description');
+        foreach ($map as $key => $label) {
+            if (preg_match('/\/\*[\s\S]*?' . preg_quote($label, '/') . '\s*:\s*([^\n*]+)/i', $head, $m)) {
+                $meta[$key] = trim($m[1]);
+            }
+        }
+        return $meta;
     }
 }
 

@@ -203,6 +203,7 @@ return array(
     'admin.comment.rejected'         => 'Comment rejected',
     'admin.comment.trashed'          => 'Comment moved to trash',
     'admin.comment.restored'         => 'Comment restored',
+    'admin.comment.restored_pending' => 'Comment restored; it will be published after review',
 
     /* ---------- Categories ---------- */
     'admin.category.add'            => 'Add Category',
@@ -340,7 +341,7 @@ return array(
     'admin.theme.zip_too_large'     => 'The zip file must not exceed 10MB',
     'admin.theme.zip_only'          => 'Only .zip format is supported',
     'admin.theme.zip_ext_missing'   => 'The ZipArchive extension is not enabled on the server; cannot extract theme packages',
-    'admin.theme.dir_invalid'       => 'Theme directory name is invalid or already exists',
+    'admin.theme.dir_invalid'       => 'Theme directory name is invalid or reserved',
     'admin.theme.zip_open_failed'   => 'The zip file cannot be opened',
     'admin.theme.zip_bad_path'      => 'The zip contains illegal path entries',
     'admin.theme.zip_bad_entry'     => 'The zip contains a disallowed entry: %s',
@@ -348,6 +349,9 @@ return array(
     'admin.theme.dir_create_failed' => 'Failed to create the theme directory',
     'admin.theme.zip_extract_failed'=> 'Failed to extract the zip',
     'admin.theme.uploaded'          => 'Theme uploaded: %s',
+    'admin.theme.updated'           => 'Theme overwritten and updated: %s',
+    'admin.theme.no_overwrite_active' => 'Cannot overwrite the currently active theme; please switch to another theme first',
+    'admin.theme.name_mismatch'     => 'The Theme Name in the package does not match the existing theme; overwrite rejected',
 
     /* ---------- Plugins ---------- */
     'admin.plugin.orphan_tip'        => 'The directories of the following plugins no longer exist (possibly deleted directly instead of uninstalled), but their configuration and data remain in the database:',

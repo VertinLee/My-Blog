@@ -4,6 +4,15 @@
  */
 defined('APP_BOOT') or exit;
 ?>
+<div class="card">
+    <h3>上传插件（zip，包内须含 {slug}.php 主文件并声明 Plugin Name）</h3>
+    <form method="post" action="<?php echo e(site_base_admin('plugin/upload')); ?>" enctype="multipart/form-data" class="filter-bar">
+        <?php echo Csrf::field(); ?>
+        <input type="file" name="plugin_zip" accept=".zip" required>
+        <button class="layui-btn" type="submit"><i class="layui-icon layui-icon-upload"></i> 上传</button>
+    </form>
+    <p class="tip">同名插件将执行覆盖更新（旧目录自动备份、失败回滚）；服务器上传上限约 <?php echo (int) floor($uploadLimit / 1048576); ?>MB，程序限制 10MB。</p>
+</div>
 <?php if (!empty($orphans)): ?>
 <div class="card">
     <p class="tip"><?php echo e(admin_t('admin.plugin.orphan_tip')); ?></p>
