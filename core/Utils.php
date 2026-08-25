@@ -28,6 +28,28 @@ function admin_t($key, array $args = array())
 }
 
 /**
+ * 文案占位格式化：顺序替换 %s（%% 转义为 %）；参数不足时保留原占位符，不抛警告
+ * Lang::t / Theme::t / Auth::msgOf / ZipSafe::msgOf 共用的唯一实现
+ *
+ * @param string $text 含占位的文案
+ * @param array  $args 占位参数
+ * @return string
+ */
+function msg_format($text, array $args)
+{
+    if (empty($args)) {
+        return $text;
+    }
+    $i = 0;
+    return preg_replace_callback('/%%|%s/', function ($m) use ($args, &$i) {
+        if ($m[0] === '%%') {
+            return '%';
+        }
+        return isset($args[$i]) ? (string) $args[$i++] : $m[0];
+    }, $text);
+}
+
+/**
  * 是否 HTTPS 环境
  *
  * @return bool

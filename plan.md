@@ -63,6 +63,7 @@
 │       └── zh_CN.php      ← 后台中文基线语言包（所有语言的最终降级方案，禁止删除）
 ├── themes/
 │   └── default/           ← 默认模板（仿 qyqiu.cn），结构见 §10
+│       └── langs/         ← 主题语言包（zh_CN.php 中文基线随主题发布 + en_US.php 等；主题资源随主题目录存放，禁止放 assets/）
 ├── plugins/
 │   ├── smtp-mailer/       ← 预装 SMTP 发信插件（默认禁用）
 │   │   ├── smtp-mailer.php
@@ -186,6 +187,7 @@ id / name / slug UNIQUE / description / sort。
 | `/page/{slug}.html` | 独立页面（如"关于我"） |
 | `/search?q=...` | 搜索 |
 | `/login`、`/register`、`/forgot` | 认证表单页（前台模板渲染） |
+| `/lang/{code}` | 前台语言切换（GET，写 `cb_theme_lang` cookie 偏好后安全回跳；仅白名单语言码生效） |
 | `/user/...` | 后台（独立目录入口） |
 | `/install/...` | 安装程序 |
 
@@ -349,6 +351,7 @@ id / name / slug UNIQUE / description / sort。
 `plugin_option($slug,$key,$default)`、`plugin_option_update()`、`plugin_log($action,$detail)`（接统一日志）、`plugin_url($slug,$path)`、设置页渲染辅助函数。
 写入类 API（`plugin_option_update`/`plugin_data_*`/`plugin_user_*`/`plugin_register_table`）受命名空间强制校验：内核按执行上下文（插件加载、钩子回调、设置页回调期间自动识别归属插件）拒绝跨插件写入，违规记 `security` 审计；读取不受限。
 验证码渠道能力声明：`register_verify_provider($channel)`（仅插件加载期可调、强制归属声明者）与 `get_verify_provider($channel)`；内核对验证码能力的探测与策略读取仅认声明，不硬编码插件名。
+插件多语言：`plugin_t($slug,$key,$args,$default,$lang)` + 插件自带 `langs/{xx_XX}.php`（zh_CN 基线必备、APP_BOOT 守卫），查找顺序为当前语言包 → 插件中文基线 → 中文缺省 → 键名；语言缺省取站点默认语言（`admin_locale`），外发邮件必须用站点默认语言。完整约定见 `plugins/README.md` §4.3。
 
 ### 7.5 插件管理页（仅管理员）
 列表（名称/版本/作者/描述/状态）、启用、禁用、删除（删除目录，二次确认）、插件设置页入口。插件文件必须位于 `plugins/` 且头部元数据合法才会被发现。
@@ -407,6 +410,7 @@ id / name / slug UNIQUE / description / sort。
 - **交互**：☾ 明暗主题切换（localStorage 记忆，跟随系统偏好为默认）；☰ 移动端折叠菜单；全站响应式。
 - **页面类型**：`index.php`（首页/列表）、`single.php`（文章详情 + 评论区 + 评论表单[登录可见]）、`page.php`（独立页面如"关于我"）、`archive.php`（分类/作者归档）、`search.php`、`404.php`。
 - **模板结构（仿 WP）**：`header.php`、`footer.php`、`sidebar.php`、`functions.php`（主题自己的钩子/助手）、`style.css`。
+- **主题多语言（i18n）**：语言包随主题放 `themes/{dir}/langs/xx_XX.php`（`return array(...)`，键规范 `theme.{模块}.{语义}`，`_name`/`_locale` 为包元信息），`langs/zh_CN.php` 为随主题发布的中文基线（最终降级方案，禁止删除）；模板与前台控制器文案经 `theme_t()` 查询（当前语言包 → 主题中文基线 → 中文缺省参数 → 原样返回键，支持 `%s` 占位）；语言解析链：访客 `cb_theme_lang` cookie（侧边栏语言切换器经 `/lang/{code}` 路由写入，HttpOnly+SameSite=Lax，HTTPS 下 Secure）→ 浏览器 `Accept-Language`（q 值降序，先精确后按主标签族匹配，仅白名单主题实有包）→ 后台 `admin_locale`（主题存在同名包时沿用）→ `zh_CN`；`<html lang>` 经 `Theme::locale()` 输出，日期格式经 `theme_date()` 随包内 `theme.common.date_format` 切换；主题 JS 文案在无 CSP 页面经 `window.CB_*` 内联注入（复用内核 verify.js/password_check.js 的覆盖机制），文章/独立页受受限 CSP 约束改走元素 `data-*` 属性传递。无 `langs/` 目录的主题行为与硬编码中文时期完全一致（内核侧 `theme_t` 调用必带中文缺省参数）。默认主题随包中英双语（`langs/zh_CN.php` + `langs/en_US.php`）。
 - **模板 API**：`site_name()`、`site_motto()`、`the_posts()`、`the_title()`、`the_date()`、`the_category()`、`the_excerpt()`、`the_content()`、`paginate()`、`comment_list()` 等；模板内禁止直接操作 DB。
 - **模板管理页**（仅管理员）：主题列表（读取 style.css 头部元数据：Theme Name/Author/Version/Description）、启用、禁用、删除；支持上传主题 zip 包（服务端校验后解压到 `themes/`），同名主题可覆盖更新（`Theme Name` 不一致拒绝；`default` 与启用中主题不可覆盖；旧目录备份+失败回滚），审计记 `theme.upload`/`theme.update` 成败两类。
 

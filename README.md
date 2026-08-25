@@ -12,6 +12,11 @@
 - 后台多语言（i18n）：预装中文（内核基线）与英文语言包，后台「站点设置 → 后台语言」一键切换；
   自制语言包放入 `assets/langs/` 即自动被检测可选，缺键自动回退中文；无任何语言包时后台保持中文。
   安装向导同样中英双语（浏览器语言自动检测 + 右上角手动切换），第三步可选择后台语言并写入 `admin_locale`
+- 前台多语言（默认主题）：中英双语随包（`themes/default/langs/`），语言解析优先级为
+  侧边栏手动切换（cookie 记忆）→ 浏览器 `Accept-Language` 自动检测 → 后台语言设置 → 中文；
+  主题多语言约定（语言包格式/解析链/JS 文案注入）见 `themes/README.md` §4.3
+- 插件多语言：`smtp-mailer` 自带中英语言包（`plugins/smtp-mailer/langs/`），后台设置页与验证码邮件
+  随站点后台语言（`admin_locale`）显示；第三方插件经 `plugin_t()` 接入，约定见 `plugins/README.md` §4.3
 - 统一审计日志（只增不改、留存 ≥180 天、查询/导出留痕）
 - 登录失败锁定（5 次/10 分钟，可配；计数原子自增，并发爆破不可绕过）+ IP 限流（IPv6 按 /64 归一计数）；会话 30 分钟无操作超时；改密后其余既有会话自动失效；登录失败提示统一防账号枚举（已知妥协：锁定提示理论上可用于探测账号存在性，见 plan.md §6.3）
 - 验证码发送接口 IP 维度限流；发送配额检查与写入经命名锁互斥（并发无法超限群发）；提交时原子消费（防并发重放）；不设预检接口，验证码对错仅在提交时统一提示（防有效性探测）；错误容忍次数由发送插件管理（默认 2 次，错满即作废）；发送与核验全程审计
@@ -89,7 +94,8 @@ core/              内核（禁止 HTTP 访问，文件头部 APP_BOOT 守卫）
 themes/            模板（themes/default 为默认主题，开发指南见 themes/README.md）
 plugins/           插件（开发规范见 plugins/README.md）
 assets/            静态资源；assets/vendor/ 为本地化第三方资源（登记见其 README），assets/front/ 为内核跨场景共用脚本，
-                   assets/langs/ 为后台语言包目录（禁止 HTTP 直接访问）；主题自有资源随主题目录存放（如 themes/default/js/）
+                   assets/langs/ 为后台语言包目录（禁止 HTTP 直接访问）；主题自有资源随主题目录存放（如 themes/default/js/、
+                   themes/default/langs/ 主题语言包，中文基线 langs/zh_CN.php 随主题发布勿删除）
 core/langs/        后台中文基线语言包（最终降级方案，勿删除）
 uploads/           上传目录（已配置禁止执行 PHP）
 user/              后台入口（/user/index.php）

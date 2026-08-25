@@ -9,7 +9,10 @@
 ```
 plugins/
 └── hello-world/
-    └── hello-world.php    ← 主文件（必需）
+    ├── hello-world.php    ← 主文件（必需）
+    └── langs/             ← 语言包（可选，见 §4.3；zh_CN.php 为基线）
+        ├── zh_CN.php
+        └── en_US.php
 ```
 
 - `slug` 只允许小写字母、数字、连字符（`[a-z0-9-]{1,64}`）。
@@ -137,6 +140,7 @@ URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`
 | `register_verify_provider($channel)` | 声明验证码渠道能力（仅插件加载期可调，强制归属当前插件） |
 | `get_verify_provider($channel)` | 查询渠道声明者 slug（未声明返回 null） |
 | `register_plugin_page($slug, $title, $callback)` | 注册后台设置页（在 `admin_menu` 钩子中调用） |
+| `plugin_t($slug, $key, $args, $default, $lang)` | 插件文案翻译（见 §4.3 插件多语言约定） |
 | `input_password($key, $default, $maxLen)` | 口令/密钥专用输入校验器（原样透传不 trim 不过滤，仅字符串化与长度上限；AccessKeySecret、SMTP 授权码等一律经它读取，禁止直读 `$_POST`） |
 
 其他可用内核 API：`add_action/add_filter`、`e()`、`Router::url()`、`Option::get()`、
@@ -176,6 +180,24 @@ URL 生成需兼容伪静态开关：开启时 `Router::base() . '/my-callback'`
    `plugin_data` 行或 `plugin_{slug}_*` 选项的插件，提供「清理残留数据」
    按钮（`plugin/cleanup_orphan`，管理员权限 + CSRF + 审计留痕），
    复用卸载回收逻辑全量清理。
+
+### 4.3 插件多语言约定（plugin_t）
+
+插件用户可见文案一律经 `plugin_t($slug, $key, $args, $default, $lang)` 输出，
+语言包随插件目录自带，不占用内核/后台语言包命名空间：
+
+- **目录约定**：`plugins/{slug}/langs/zh_CN.php`（中文基线，**必备**）与可选
+  `plugins/{slug}/langs/{xx_XX}.php`；文件为可执行 PHP（`return array(...)`），
+  文件头必须带 `defined('APP_BOOT') or exit;` 守卫，可含 `_name` 显示名键。
+- **查找顺序**：当前语言插件包 → 插件 zh_CN 基线 → `$default`（中文缺省，调用点
+  建议始终给出，保证语言包缺失时可运行）→ 原样返回键名（便于排查遗漏）。
+- **语言选择**：缺省取站点默认语言（`admin_locale`，即后台/外发邮件语言）；
+  可用第 5 参 `$lang` 强制指定语言码。外发邮件（如验证码邮件）**必须**使用站点
+  默认语言，禁止跟随请求者浏览器语言。
+- **占位参数**：与内核一致，使用 `%s` 位置占位（`msg_format` 格式化）。
+- **zip 上传安装**：`langs/` 目录随插件包一并上传，无需额外登记。
+
+随包插件 `smtp-mailer` 为完整参考实现（`aliyun-sms`/`qq-login` 面向国内服务，文案保持中文硬编码，不做多语言）。
 
 ## 5. 后台设置页
 
