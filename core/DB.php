@@ -165,7 +165,7 @@ class DB
             return false;
         }
         $stmt = self::$pdo->prepare('SELECT GET_LOCK(?, ?)');
-        $stmt->execute(array(self::$prefix . $name, max(0, (int) $timeoutSeconds)));
+        $stmt->execute(array(self::lockName($name), max(0, (int) $timeoutSeconds)));
         // fetchColumn 与连接级默认 fetch 模式（ASSOC）无关，必须用它取标量结果
         $value = $stmt->fetchColumn();
         return $value !== false && (int) $value === 1;
@@ -183,8 +183,23 @@ class DB
             return;
         }
         $stmt = self::$pdo->prepare('SELECT RELEASE_LOCK(?)');
-        $stmt->execute(array(self::$prefix . $name));
+        $stmt->execute(array(self::lockName($name)));
         $stmt->fetch();
+    }
+
+    /**
+     * 物理锁名：表前缀 + 逻辑名。MySQL 锁名上限 64 字符，安装向导允许最长 32 字符
+     * 前缀，prefix+name 可能超限（超限触发 GET_LOCK 报错而非静默失败）。
+     * 超限时降级为 前缀头部+全名散列：长度恒定 57，且不同逻辑名散列不同，
+     * 不会像单纯截断那样把尾部散列切掉导致异名同锁
+     */
+    private static function lockName($name)
+    {
+        $full = self::$prefix . $name;
+        if (strlen($full) <= 64) {
+            return $full;
+        }
+        return substr($full, 0, 24) . '_' . md5($full);
     }
 }
 

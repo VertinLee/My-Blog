@@ -792,12 +792,6 @@ class Front
         }
         Auth::require_cap('edit_own_comments');
 
-        // 与评论创建同一限流桶：修改同样是写路径，不能成为绕过限流的旁路
-        if (!ip_throttle_allow('comment', 10)) {
-            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
-            redirect(Router::url('home'));
-        }
-
         $commentId = input_int('comment_id', 0, 'post');
         $content = input_text('content', '', 2000, 'post');
         $comment = DB::query('comments')->where('id', '=', $commentId)->first();
@@ -806,6 +800,12 @@ class Front
             redirect(Router::url('home'));
         }
         $back = self::commentBackUrl($comment, '#comment-' . (int) $comment['id']);
+        // 与评论创建同一限流桶：修改同样是写路径，不能成为绕过限流的旁路。
+        // 放在 $back 计算之后：限流命中也回跳原文锚点，不把用户弹回首页
+        if (!ip_throttle_allow('comment', 10)) {
+            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
+            redirect($back);
+        }
         // 仅允许修改本人评论（管理员管理全部评论走后台 comment 模块）
         if ((int) $comment['user_id'] !== Auth::id()) {
             blog_log('comment', 'comment.update', 'fail', array('comment_id' => $commentId, 'reason' => 'not_owner'));
@@ -864,12 +864,6 @@ class Front
         }
         Auth::require_cap('delete_own_comments');
 
-        // 与评论创建同一限流桶：删除同样是写路径，不能成为绕过限流的旁路
-        if (!ip_throttle_allow('comment', 10)) {
-            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
-            redirect(Router::url('home'));
-        }
-
         $commentId = input_int('comment_id', 0, 'post');
         $comment = DB::query('comments')->where('id', '=', $commentId)->first();
         if (!$comment || $comment['status'] === 'trash') {
@@ -877,6 +871,12 @@ class Front
             redirect(Router::url('home'));
         }
         $back = self::commentBackUrl($comment);
+        // 与评论创建同一限流桶：删除同样是写路径，不能成为绕过限流的旁路。
+        // 放在 $back 计算之后：限流命中也回跳原文，不把用户弹回首页
+        if (!ip_throttle_allow('comment', 10)) {
+            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
+            redirect($back);
+        }
         if ((int) $comment['user_id'] !== Auth::id()) {
             blog_log('comment', 'comment.delete', 'fail', array('comment_id' => $commentId, 'reason' => 'not_owner'));
             flash_set('error', theme_t('theme.front.comment_delete_own', array(), '只能删除自己发表的评论'));

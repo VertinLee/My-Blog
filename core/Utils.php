@@ -516,12 +516,14 @@ function ip_throttle_allow($bucket, $maxPerMinute)
     $now = time();
     // 锁名细化到 桶+IP：全站共用一把 'throttle' 锁时，任一受限接口的高频请求
     // 会让所有接口的限流临界区在 GET_LOCK 上串行排队，被放大成横向 DoS。
-    // 锁名即计数器键（天然含桶与 IP 散列），截断 60 字符：DB::lock 还会拼表前缀，
-    // 须保证拼接后不超过 MySQL 锁名 64 字符上限
+    // 锁名即计数器键（天然含桶与 IP 散列）；拼表前缀后超过 MySQL 锁名 64 字符
+    // 上限时由 DB::lockName 降级为散列名，不会因长前缀失效
     $lock = substr($key, 0, 60);
     // 3 秒等待：临界区仅一次 options 读写（毫秒级），零超时会把双击提交等
     // 轻微并发误判为限流；等待超时仍取不到才按超限处理（fail-closed）
     if (!DB::lock($lock, 3)) {
+        // 静默 false 会让排障无从下手：写一条日志说明是哪个桶被挡
+        error_log('[blog] throttle lock acquire failed: ' . $lock);
         return false;
     }
     try {
@@ -552,8 +554,13 @@ function ip_throttle_purge()
     if (time() - $last < 86400) {
         return;
     }
-    Option::set('throttle_last_purge', time());
+    // 命名锁互斥（同 verify_codes_purge）：防并发 bootstrap 重复清理
+    // 与并发首写 options 标记撞主键
+    if (!DB::lock('purge_throttle', 0)) {
+        return;
+    }
     try {
+        Option::set('throttle_last_purge', time());
         // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 throttle_ 前缀
         $rows = DB::query('options')
             ->where('option_key', 'LIKE', 'throttle\_%')
@@ -572,6 +579,8 @@ function ip_throttle_purge()
         }
     } catch (Exception $ex) {
         error_log('[blog] throttle purge failed: ' . $ex->getMessage());
+    } finally {
+        DB::unlock('purge_throttle');
     }
 }
 
@@ -589,13 +598,29 @@ function verify_codes_purge()
     if (time() - $last < 86400) {
         return;
     }
-    Option::set('verify_codes_last_purge', time());
+    // 命名锁互斥（timeout 0，拿不到说明另一进程正在清理，直接跳过）：
+    // 否则并发 bootstrap 会同时通过窗口判定、同时 Option::set 标记——
+    // set 内部是 SELECT-then-INSERT，并发首写会撞 options 主键 23000；
+    // 也会把清理放大成多进程并发 DELETE
+    if (!DB::lock('purge_verify_codes', 0)) {
+        return;
+    }
     try {
+        Option::set('verify_codes_last_purge', time());
         $cutoff = date('Y-m-d H:i:s', time() - 7 * 86400);
-        $stmt = DB::pdo()->prepare('DELETE FROM `' . DB::table('verify_codes') . '` WHERE expires_at < ? LIMIT 5000');
-        $stmt->execute(array($cutoff));
+        // 循环小批量删除直到清完（单日清 5000 行对积压表永远追不上）；
+        // 上限 20 批（10 万行）防止单请求执行过久，剩余积压次日继续
+        $batches = 0;
+        do {
+            $stmt = DB::pdo()->prepare('DELETE FROM `' . DB::table('verify_codes') . '` WHERE expires_at < ? LIMIT 5000');
+            $stmt->execute(array($cutoff));
+            $deleted = $stmt->rowCount();
+            $batches++;
+        } while ($deleted === 5000 && $batches < 20);
     } catch (Exception $ex) {
         error_log('[blog] verify_codes purge failed: ' . $ex->getMessage());
+    } finally {
+        DB::unlock('purge_verify_codes');
     }
 }
 
