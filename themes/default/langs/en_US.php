@@ -170,6 +170,7 @@ return array(
     'theme.front.email_code_invalid'     => 'Email verification code is incorrect or expired',
     'theme.front.phone_required'         => 'Please enter your phone number',
     'theme.front.sms_code_invalid'       => 'SMS verification code is incorrect or expired',
+    'theme.front.register_conflict'      => 'Your registration details conflict with an existing account. Please adjust and try again.',
     'theme.front.register_success'       => 'Registration successful, please log in',
     'theme.front.forgot_no_provider'     => 'No email or SMS verification plugin is enabled. Please contact the administrator to reset your password.',
     'theme.front.new_password_mismatch'  => 'The two new passwords do not match',

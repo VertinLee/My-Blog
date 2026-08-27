@@ -317,8 +317,9 @@ function ins_do_install($dbConf, $admin)
             $admin['username'],
             $admin['nickname'] !== '' ? $admin['nickname'] : $admin['username'],
             password_hash($admin['password'], PASSWORD_DEFAULT),
-            $admin['email'],
-            $admin['phone'],
+            // 空邮箱/手机号存 NULL：多行空串会撞 uk_email/uk_phone 唯一键，NULL 不会
+            $admin['email'] !== '' ? $admin['email'] : null,
+            $admin['phone'] !== '' ? $admin['phone'] : null,
             $now,
             $now,
         ));

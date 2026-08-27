@@ -171,6 +171,7 @@ return array(
     'theme.front.email_code_invalid'     => '邮箱验证码错误或已过期',
     'theme.front.phone_required'         => '请输入手机号',
     'theme.front.sms_code_invalid'       => '短信验证码错误或已过期',
+    'theme.front.register_conflict'      => '注册信息与他人冲突，请更换后重试',
     'theme.front.register_success'       => '注册成功，请登录',
     'theme.front.forgot_no_provider'     => '站点未启用邮箱或短信验证插件，请联系管理员重置密码。',
     'theme.front.new_password_mismatch'  => '两次输入的新密码不一致',

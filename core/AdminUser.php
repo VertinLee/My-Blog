@@ -103,7 +103,8 @@ class AdminUser
                 'nickname'            => $nickname !== '' ? $nickname : $username,
                 'password'            => password_hash($password, PASSWORD_DEFAULT),
                 'email'               => $email !== '' ? $email : null,
-                'phone'               => $phone,
+                // 空手机号存 NULL：多行空串会撞 uk_phone 唯一键，NULL 不会
+                'phone'               => $phone !== '' ? $phone : null,
                 'avatar'              => '',
                 'role'                => $role,
                 'status'              => 1,
@@ -186,11 +187,22 @@ class AdminUser
         $update = array(
             'nickname' => $nickname !== '' ? $nickname : $user['nickname'],
             'email'    => $email !== '' ? $email : null,
-            'phone'    => $phone,
+            // 空手机号存 NULL：多行空串会撞 uk_phone 唯一键，NULL 不会
+            'phone'    => $phone !== '' ? $phone : null,
             'role'     => $role,
             'status'   => $status,
         );
-        DB::update('users', $update, array('id' => $id));
+        // 前置查重存在并发窗口（TOCTOU）：撞唯一索引时捕获重复键异常转为友好提示
+        try {
+            DB::update('users', $update, array('id' => $id));
+        } catch (PDOException $ex) {
+            if ($ex->getCode() === '23000') {
+                blog_log('user', 'user.update', 'fail', array('target_user_id' => $id, 'reason' => 'duplicate'));
+                flash_set('error', admin_t('admin.user.concurrent_conflict'));
+                redirect(site_base_admin('user/edit&id=' . $id));
+            }
+            throw $ex;
+        }
         $detail = array('target_user_id' => $id, 'role' => $role, 'status' => $status);
         blog_log('user', 'user.update', 'success', $detail);
         if ($role !== $user['role']) {

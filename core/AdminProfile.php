@@ -37,7 +37,9 @@ class AdminProfile
         }
 
         $oldEmail = $user['email'] !== null ? $user['email'] : '';
-        $contactChanged = $email !== $oldEmail || $phone !== $user['phone'];
+        // phone 列允许 NULL，与表单空串比较前必须归一（'' !== NULL 会被误判为变更，
+        // 导致未改联系方式也被要求重验密码）
+        $contactChanged = $email !== $oldEmail || $phone !== (string) $user['phone'];
         if ($contactChanged) {
             // 敏感操作重验当前密码
             if ($password === '' || !password_verify($password, $user['password'])) {
@@ -80,13 +82,24 @@ class AdminProfile
             }
         }
 
-        DB::update('users', array(
-            'nickname'  => $nickname !== '' ? $nickname : $user['nickname'],
-            'signature' => $signature,
-            'email'     => $email !== '' ? $email : null,
-            'phone'     => $phone,
-            'avatar'    => $avatar,
-        ), array('id' => (int) $user['id']));
+        // 空邮箱/手机号一律存 NULL（多行空串会撞唯一键）；
+        // 前置查重存在并发窗口（TOCTOU），撞唯一索引时转为友好提示而非裸 500
+        try {
+            DB::update('users', array(
+                'nickname'  => $nickname !== '' ? $nickname : $user['nickname'],
+                'signature' => $signature,
+                'email'     => $email !== '' ? $email : null,
+                'phone'     => $phone !== '' ? $phone : null,
+                'avatar'    => $avatar,
+            ), array('id' => (int) $user['id']));
+        } catch (PDOException $ex) {
+            if ($ex->getCode() === '23000') {
+                blog_log('user', 'profile.update', 'fail', array('reason' => 'duplicate'));
+                flash_set('error', admin_t('admin.user.concurrent_conflict'));
+                redirect(site_base_admin('profile'));
+            }
+            throw $ex;
+        }
         blog_log('user', 'profile.update', 'success', array(
             'contact_changed' => $contactChanged ? 1 : 0,
         ));

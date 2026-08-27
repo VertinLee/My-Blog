@@ -147,3 +147,6 @@ plugin_data_purge_expired();
 
 // IP 限流计数器（options 表 throttle_* 行）惰性清理，每日最多一次
 ip_throttle_purge();
+
+// 过期验证码（verify_codes 表）惰性清理，每日最多一次
+verify_codes_purge();

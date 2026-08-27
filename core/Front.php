@@ -512,20 +512,32 @@ class Front
                 }
 
                 // 公开注册只能产生 role=user（功能红线）
-                $userId = DB::insert('users', array(
-                    'username'            => $username,
-                    'nickname'            => $nickname !== '' ? $nickname : $username,
-                    'password'            => password_hash($password, PASSWORD_DEFAULT),
-                    'email'               => $email !== '' ? $email : null,
-                    'phone'               => $phone,
-                    'avatar'              => '',
-                    'role'                => 'user',
-                    'status'              => 1,
-                    'password_changed_at' => now(),
-                    'login_fail'          => 0,
-                    'locked_until'        => null,
-                    'created_at'          => now(),
-                ));
+                // 空邮箱/手机号一律存 NULL：多行空串会撞 uk_email/uk_phone 唯一键，NULL 不会
+                try {
+                    $userId = DB::insert('users', array(
+                        'username'            => $username,
+                        'nickname'            => $nickname !== '' ? $nickname : $username,
+                        'password'            => password_hash($password, PASSWORD_DEFAULT),
+                        'email'               => $email !== '' ? $email : null,
+                        'phone'               => $phone !== '' ? $phone : null,
+                        'avatar'              => '',
+                        'role'                => 'user',
+                        'status'              => 1,
+                        'password_changed_at' => now(),
+                        'login_fail'          => 0,
+                        'locked_until'        => null,
+                        'created_at'          => now(),
+                    ));
+                } catch (PDOException $ex) {
+                    // 前置查重存在并发窗口（TOCTOU）：撞唯一索引时转为统一友好提示，
+                    // 不区分是用户名/邮箱/手机号哪一项冲突，避免裸 500 与字段级枚举
+                    if ($ex->getCode() === '23000') {
+                        blog_log('user', 'user.register', 'fail', array('username' => $username, 'reason' => 'duplicate'));
+                        $error = theme_t('theme.front.register_conflict', array(), '注册信息与他人冲突，请更换后重试');
+                        break;
+                    }
+                    throw $ex;
+                }
                 blog_log('user', 'user.register', 'success', array('user_id' => $userId, 'username' => $username));
                 do_action('user_register', $userId, array(
                     'username' => $username, 'email' => $email, 'phone' => $phone,
@@ -571,6 +583,20 @@ class Front
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Csrf::verifyOrDie();
+            // 找回密码提交限流：该路径会消费验证码并重设密码，是账号接管链路的关键一环，
+            // 以 IP 维度限速抬高验证码爆破与账号枚举成本（60s 窗口内超过 10 次即拒绝）
+            if (!ip_throttle_allow('forgot', 10)) {
+                Theme::render('forgot', array(
+                    'page_type'    => 'forgot',
+                    'title'        => theme_t('theme.front.forgot_title', array(), '找回密码'),
+                    'error'        => theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'),
+                    'info'         => '',
+                    'account'      => input_text('account', '', 128, 'post'),
+                    'emailEnabled' => $emailEnabled,
+                    'smsEnabled'   => $smsEnabled,
+                ));
+                return;
+            }
             $account = input_text('account', '', 128, 'post');
             $user = null;
             if ($account !== '') {
@@ -685,6 +711,12 @@ class Front
             }
         }
 
+        // 评论写入限流：防灌水/刷接口灌库（60s 窗口内超过 10 次即拒绝）
+        if (!ip_throttle_allow('comment', 10)) {
+            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
+            redirect($back);
+        }
+
         $post = DB::query('posts')->where('id', '=', $postId)->where('status', '=', 'published')->first();
         if (!$post) {
             flash_set('error', theme_t('theme.front.post_not_found', array(), '文章不存在'));
@@ -760,6 +792,12 @@ class Front
         }
         Auth::require_cap('edit_own_comments');
 
+        // 与评论创建同一限流桶：修改同样是写路径，不能成为绕过限流的旁路
+        if (!ip_throttle_allow('comment', 10)) {
+            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
+            redirect(Router::url('home'));
+        }
+
         $commentId = input_int('comment_id', 0, 'post');
         $content = input_text('content', '', 2000, 'post');
         $comment = DB::query('comments')->where('id', '=', $commentId)->first();
@@ -825,6 +863,12 @@ class Front
             redirect(Router::url('login'));
         }
         Auth::require_cap('delete_own_comments');
+
+        // 与评论创建同一限流桶：删除同样是写路径，不能成为绕过限流的旁路
+        if (!ip_throttle_allow('comment', 10)) {
+            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
+            redirect(Router::url('home'));
+        }
 
         $commentId = input_int('comment_id', 0, 'post');
         $comment = DB::query('comments')->where('id', '=', $commentId)->first();

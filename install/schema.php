@@ -14,13 +14,15 @@ function install_schema($prefix)
 {
     $tables = array();
 
+    // phone 允许 NULL：空手机号必须存 NULL（多行 NULL 不撞唯一键）；
+    // 手机号是身份核验凭据，唯一性由 uk_phone 在数据库层兜底（应用层查重存在 TOCTOU 窗口）
     $tables['users'] = "CREATE TABLE IF NOT EXISTS `{$prefix}users` (
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
         `username` VARCHAR(32) NOT NULL,
         `nickname` VARCHAR(64) NOT NULL DEFAULT '',
         `password` VARCHAR(255) NOT NULL,
         `email` VARCHAR(128) NULL DEFAULT NULL,
-        `phone` VARCHAR(20) NOT NULL DEFAULT '',
+        `phone` VARCHAR(20) NULL DEFAULT NULL,
         `avatar` VARCHAR(255) NOT NULL DEFAULT '',
         `signature` VARCHAR(255) NOT NULL DEFAULT '',
         `role` ENUM('admin','editor','user') NOT NULL DEFAULT 'user',
@@ -33,7 +35,8 @@ function install_schema($prefix)
         `created_at` DATETIME NOT NULL,
         PRIMARY KEY (`id`),
         UNIQUE KEY `uk_username` (`username`),
-        UNIQUE KEY `uk_email` (`email`)
+        UNIQUE KEY `uk_email` (`email`),
+        UNIQUE KEY `uk_phone` (`phone`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
     $tables['posts'] = "CREATE TABLE IF NOT EXISTS `{$prefix}posts` (

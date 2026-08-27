@@ -514,9 +514,14 @@ function ip_throttle_allow($bucket, $maxPerMinute)
 {
     $key = 'throttle_' . $bucket . '_' . md5(throttle_ip_key(client_ip()));
     $now = time();
+    // 锁名细化到 桶+IP：全站共用一把 'throttle' 锁时，任一受限接口的高频请求
+    // 会让所有接口的限流临界区在 GET_LOCK 上串行排队，被放大成横向 DoS。
+    // 锁名即计数器键（天然含桶与 IP 散列），截断 60 字符：DB::lock 还会拼表前缀，
+    // 须保证拼接后不超过 MySQL 锁名 64 字符上限
+    $lock = substr($key, 0, 60);
     // 3 秒等待：临界区仅一次 options 读写（毫秒级），零超时会把双击提交等
     // 轻微并发误判为限流；等待超时仍取不到才按超限处理（fail-closed）
-    if (!DB::lock('throttle', 3)) {
+    if (!DB::lock($lock, 3)) {
         return false;
     }
     try {
@@ -531,7 +536,7 @@ function ip_throttle_allow($bucket, $maxPerMinute)
         Option::set($key, $start . '|' . $count);
         return $count <= $maxPerMinute;
     } finally {
-        DB::unlock('throttle');
+        DB::unlock($lock);
     }
 }
 
@@ -567,6 +572,30 @@ function ip_throttle_purge()
         }
     } catch (Exception $ex) {
         error_log('[blog] throttle purge failed: ' . $ex->getMessage());
+    }
+}
+
+/**
+ * 验证码惰性清理（每日最多一次，由 bootstrap 触发）：
+ * verify_codes 只增不清会无限膨胀；过期 7 天以上的历史验证码行已无任何
+ * 业务价值（核验只查未过期行），批量小步删除避免长事务锁表。
+ * MySQL DELETE 仅支持 LIMIT N（不支持 offset,count），故用原生 PDO 而非查询构造器
+ *
+ * @return void
+ */
+function verify_codes_purge()
+{
+    $last = (int) Option::get('verify_codes_last_purge', 0);
+    if (time() - $last < 86400) {
+        return;
+    }
+    Option::set('verify_codes_last_purge', time());
+    try {
+        $cutoff = date('Y-m-d H:i:s', time() - 7 * 86400);
+        $stmt = DB::pdo()->prepare('DELETE FROM `' . DB::table('verify_codes') . '` WHERE expires_at < ? LIMIT 5000');
+        $stmt->execute(array($cutoff));
+    } catch (Exception $ex) {
+        error_log('[blog] verify_codes purge failed: ' . $ex->getMessage());
     }
 }
 
