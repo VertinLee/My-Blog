@@ -700,16 +700,7 @@ class Front
         $parentId = input_int('parent_id', 0, 'post');
         $content = input_text('content', '', 2000, 'post');
 
-        $back = Router::url('home');
-        $candidate = input_text('redirect', '', 255, 'post');
-        if ($candidate !== '') {
-            // 防开放重定向：仅允许站内安全字符组成的相对路径
-            if (preg_match('#^[A-Za-z0-9/_.?=&%-]+$#', $candidate)
-                && strpos($candidate, '//') === false
-                && strpos($candidate, Router::base() . '/') === 0) {
-                $back = $candidate;
-            }
-        }
+        $back = self::commentRequestBackUrl();
 
         // 评论写入限流：防灌水/刷接口灌库（60s 窗口内超过 10 次即拒绝）
         if (!ip_throttle_allow('comment', 10)) {
@@ -779,6 +770,20 @@ class Front
         return Router::url('post', array('slug' => (string) $post['slug'], 'id' => (int) $post['id'])) . $anchor;
     }
 
+    /** 评论写操作的回跳地址：优先取表单内校验过的 redirect，避免限流/失败把用户弹回首页 */
+    private static function commentRequestBackUrl($anchor = '')
+    {
+        $back = Router::url('home');
+        $candidate = input_text('redirect', '', 255, 'post');
+        if ($candidate !== ''
+            && preg_match('#^[A-Za-z0-9/_.?=&%-]+$#', $candidate)
+            && strpos($candidate, '//') === false
+            && strpos($candidate, Router::base() . '/') === 0) {
+            $back = $candidate;
+        }
+        return $back . $anchor;
+    }
+
     /** 修改自己的评论（POST + CSRF + 登录 + edit_own_comments） */
     private static function commentUpdate()
     {
@@ -794,16 +799,17 @@ class Front
 
         $commentId = input_int('comment_id', 0, 'post');
         $content = input_text('content', '', 2000, 'post');
+        // 先限流再查评论：无效/他人评论 ID 同样计入写限流，避免无效 ID 绕过限流刷读库；
+        // 回跳地址来自表单 redirect（校验失败回首页），不依赖评论是否存在
+        $back = self::commentRequestBackUrl('#comment-' . $commentId);
+        // 与评论创建同一限流桶：修改同样是写路径，不能成为绕过限流的旁路
+        if (!ip_throttle_allow('comment', 10)) {
+            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
+            redirect($back);
+        }
         $comment = DB::query('comments')->where('id', '=', $commentId)->first();
         if (!$comment || $comment['status'] === 'trash') {
             flash_set('error', theme_t('theme.front.comment_not_found', array(), '评论不存在'));
-            redirect(Router::url('home'));
-        }
-        $back = self::commentBackUrl($comment, '#comment-' . (int) $comment['id']);
-        // 与评论创建同一限流桶：修改同样是写路径，不能成为绕过限流的旁路。
-        // 放在 $back 计算之后：限流命中也回跳原文锚点，不把用户弹回首页
-        if (!ip_throttle_allow('comment', 10)) {
-            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
             redirect($back);
         }
         // 仅允许修改本人评论（管理员管理全部评论走后台 comment 模块）
@@ -865,16 +871,17 @@ class Front
         Auth::require_cap('delete_own_comments');
 
         $commentId = input_int('comment_id', 0, 'post');
+        // 先限流再查评论：无效/他人评论 ID 同样计入写限流，避免无效 ID 绕过限流刷读库；
+        // 回跳地址来自表单 redirect（校验失败回首页），不依赖评论是否存在
+        $back = self::commentRequestBackUrl();
+        // 与评论创建同一限流桶：删除同样是写路径，不能成为绕过限流的旁路
+        if (!ip_throttle_allow('comment', 10)) {
+            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
+            redirect($back);
+        }
         $comment = DB::query('comments')->where('id', '=', $commentId)->first();
         if (!$comment || $comment['status'] === 'trash') {
             flash_set('error', theme_t('theme.front.comment_not_found', array(), '评论不存在'));
-            redirect(Router::url('home'));
-        }
-        $back = self::commentBackUrl($comment);
-        // 与评论创建同一限流桶：删除同样是写路径，不能成为绕过限流的旁路。
-        // 放在 $back 计算之后：限流命中也回跳原文，不把用户弹回首页
-        if (!ip_throttle_allow('comment', 10)) {
-            flash_set('error', theme_t('theme.front.throttled', array(), '操作过于频繁，请稍后再试'));
             redirect($back);
         }
         if ((int) $comment['user_id'] !== Auth::id()) {
