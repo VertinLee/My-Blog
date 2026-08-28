@@ -516,14 +516,14 @@ function ip_throttle_allow($bucket, $maxPerMinute)
     $now = time();
     // 锁名细化到 桶+IP：全站共用一把 'throttle' 锁时，任一受限接口的高频请求
     // 会让所有接口的限流临界区在 GET_LOCK 上串行排队，被放大成横向 DoS。
-    // 锁名即计数器键（天然含桶与 IP 散列）；拼表前缀后超过 MySQL 锁名 64 字符
-    // 上限时由 DB::lockName 降级为散列名，不会因长前缀失效
-    $lock = substr($key, 0, 60);
+    // 锁名不再复用计数器键原文：bucket 长度不受控时，substr 可能把尾部 IP 散列切掉，
+    // 退化成跨 IP 的粗粒度锁。固定用完整计数器键的散列，长度恒定且保持 桶+IP 粒度
+    $lock = 'throttle_' . md5($key);
     // 3 秒等待：临界区仅一次 options 读写（毫秒级），零超时会把双击提交等
     // 轻微并发误判为限流；等待超时仍取不到才按超限处理（fail-closed）
     if (!DB::lock($lock, 3)) {
         // 静默 false 会让排障无从下手：写一条日志说明是哪个桶被挡
-        error_log('[blog] throttle lock acquire failed: ' . $lock);
+        error_log('[blog] throttle lock acquire failed: ' . $key);
         return false;
     }
     try {
@@ -560,7 +560,13 @@ function ip_throttle_purge()
         return;
     }
     try {
-        Option::set('throttle_last_purge', time());
+        // 锁内直查复核：Option::get 走的是请求级缓存，且锁外已读过的值可能过期；
+        // 若清理中途失败则不写标记，下一个请求可立即重试而不是静默延后 24 小时
+        $lastRow = DB::query('options')->where('option_key', '=', 'throttle_last_purge')->value('option_value');
+        $last = $lastRow !== null ? (int) $lastRow : 0;
+        if (time() - $last < 86400) {
+            return;
+        }
         // LIKE 中下划线为通配符，需反斜杠转义确保只匹配 throttle_ 前缀
         $rows = DB::query('options')
             ->where('option_key', 'LIKE', 'throttle\_%')
@@ -577,6 +583,7 @@ function ip_throttle_purge()
                 DB::delete('options', array('option_key' => $row['option_key']));
             }
         }
+        Option::set('throttle_last_purge', time());
     } catch (Exception $ex) {
         error_log('[blog] throttle purge failed: ' . $ex->getMessage());
     } finally {
@@ -606,7 +613,12 @@ function verify_codes_purge()
         return;
     }
     try {
-        Option::set('verify_codes_last_purge', time());
+        // 锁内直查复核（同 ip_throttle_purge）；清理失败不写标记，允许立即重试
+        $lastRow = DB::query('options')->where('option_key', '=', 'verify_codes_last_purge')->value('option_value');
+        $last = $lastRow !== null ? (int) $lastRow : 0;
+        if (time() - $last < 86400) {
+            return;
+        }
         $cutoff = date('Y-m-d H:i:s', time() - 7 * 86400);
         // 循环小批量删除直到清完（单日清 5000 行对积压表永远追不上）；
         // 上限 20 批（10 万行）防止单请求执行过久，剩余积压次日继续
@@ -617,6 +629,7 @@ function verify_codes_purge()
             $deleted = $stmt->rowCount();
             $batches++;
         } while ($deleted === 5000 && $batches < 20);
+        Option::set('verify_codes_last_purge', time());
     } catch (Exception $ex) {
         error_log('[blog] verify_codes purge failed: ' . $ex->getMessage());
     } finally {

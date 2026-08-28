@@ -100,7 +100,9 @@ function install_schema($prefix)
         `created_at` DATETIME NOT NULL,
         PRIMARY KEY (`id`),
         KEY `idx_scene_target` (`scene`,`target`),
-        KEY `idx_created` (`created_at`)
+        KEY `idx_target_created` (`target`,`created_at`),
+        KEY `idx_created` (`created_at`),
+        KEY `idx_expires` (`expires_at`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
     $tables['logs'] = "CREATE TABLE IF NOT EXISTS `{$prefix}logs` (

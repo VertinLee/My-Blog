@@ -108,6 +108,7 @@ $commentActionsOn = !empty($commentAreaState['actions']);
                 echo '<form class="comment-edit-form" method="post" action="' . e(Router::url('comment_update')) . '">';
                 echo Csrf::field();
                 echo '<input type="hidden" name="comment_id" value="' . $cid . '">';
+                echo '<input type="hidden" name="redirect" value="' . e($singlePostUrl) . '">';
                 echo '<textarea name="content" maxlength="2000" required>' . e($commentRow['content']) . '</textarea>';
                 echo '<div class="edit-actions">';
                 echo '<button class="submit" type="submit">' . e(theme_t('theme.comment.save')) . '</button>';
@@ -124,6 +125,7 @@ $commentActionsOn = !empty($commentAreaState['actions']);
                 echo '<form class="comment-delete-form confirm-submit" data-confirm="' . e(theme_t('theme.comment.delete_confirm')) . '" method="post" action="' . e(Router::url('comment_delete')) . '">';
                 echo Csrf::field();
                 echo '<input type="hidden" name="comment_id" value="' . $cid . '">';
+                echo '<input type="hidden" name="redirect" value="' . e($singlePostUrl) . '">';
                 echo '<button class="comment-action-btn danger" type="submit">' . e(theme_t('theme.comment.delete')) . '</button>';
                 echo '</form></div>';
             }
